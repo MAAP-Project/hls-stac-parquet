@@ -338,7 +338,7 @@ def repartition_by_year_month(
 
         sql_query = f"""
         COPY (
-            SELECT year(datetime) as year, month(datetime) as month, *, 
+            SELECT year(datetime at time zone 'UTC') as year, month(datetime at time zone 'UTC') as month, *, 
             FROM read_parquet('{source_pattern}', union_by_name=true)
         ) 
         TO '{dest_path}' (
