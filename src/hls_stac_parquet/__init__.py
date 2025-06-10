@@ -12,7 +12,3 @@ __all__ = [
     "fetch_stac_items_batch",
     "fetch_stac_items",
 ]
-
-
-def main() -> None:
-    print("Hello from hls-stac-parquet!")

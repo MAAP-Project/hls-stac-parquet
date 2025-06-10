@@ -14,8 +14,8 @@ async def main():
     # Example 1: Simple conversion for a small dataset
     stats = await hls_to_stac_geoparquet(
         output_path="hls_example.parquet",
-        bounding_box=(-100, 40, -90, 50),
-        temporal=("2024-06-01T00:00:00Z", "2024-06-02T00:00:00Z"),
+        # bounding_box=(-100, 40, -90, 50),
+        temporal=("2024-06-01T00:00:00Z", "2024-06-01T23:59:59Z"),
         max_concurrent=50,
         show_progress=True,
         store=LocalStore(prefix="/tmp"),

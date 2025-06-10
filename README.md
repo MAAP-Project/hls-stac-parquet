@@ -9,12 +9,59 @@ A Python package for querying NASA's CMR API and caching HLS (Harmonized Landsat
 pip install git+https://github.com/MAAP-project/hls-stac-parquet
 ```
 
-## Quick Start
+## Command Line Interface
 
-### Python API
+The package provides a command-line interface for generating daily HLS STAC parquet files:
+
+### Generate Daily Files
+
+```bash
+# Generate files for all days in May 2024
+hls-stac-parquet generate-daily 202405 /path/to/output
+
+# Generate files for specific date range (May 10-20, 2024)
+hls-stac-parquet generate-daily 20240510 20240520 /path/to/output
+
+# Generate file for single day
+hls-stac-parquet generate-daily 20240515 /path/to/output
+
+# Generate files in parallel mode (faster)
+hls-stac-parquet generate-daily 202405 /path/to/output --parallel
+
+# Customize concurrency settings
+hls-stac-parquet generate-daily 202405 /path/to/output --parallel \
+  --max-concurrent-days 5 --max-concurrent-per-day 100
+```
+
+### Repartition Daily Files
+
+Repartition daily parquet files by year-month for better query performance:
+
+```bash
+# Repartition daily files into year-month partitions
+hls-stac-parquet repartition /path/to/daily/files /path/to/partitioned/output
+
+# Overwrite existing partitioned data
+hls-stac-parquet repartition /path/to/daily/files /path/to/partitioned/output --overwrite
+```
+
+### Date Format Options
+
+- `YYYYMM` - All days in the month (e.g., `202405` for May 2024)
+- `YYYYMMDD` - Single day (e.g., `20240515` for May 15, 2024)
+- Two `YYYYMMDD` - Date range (e.g., `20240510 20240520` for May 10-20, 2024)
+
+### CLI Options
+
+- `--parallel` - Process days in parallel (faster but more resource intensive)
+- `--max-concurrent-days N` - Maximum number of days to process concurrently (default: 3)
+- `--max-concurrent-per-day N` - Maximum concurrent requests per day (default: 50)
+- `--no-skip-existing` - Process all days even if output files already exist
+- `--no-progress` - Hide progress bars
+
+## Python API
 
 ```python
-
 """Example usage of the HLS STAC to Parquet conversion functions."""
 import asyncio
 
@@ -39,7 +86,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
 ```
 
 ## Development
