@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# npm
+cdk-hls-batch/node_modules/

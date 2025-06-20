@@ -1,0 +1,25 @@
+{
+  "name": "cdk-hls-batch",
+  "version": "1.0.0",
+  "description": "AWS CDK app for HLS STAC parquet processing with AWS Batch",
+  "main": "lib/app.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "deploy": "npm run build && cdk deploy",
+    "synth": "npm run build && cdk synth"
+  },
+  "keywords": ["aws", "cdk", "batch", "hls", "stac", "parquet"],
+  "author": "hrodmn",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.150.0",
+    "constructs": "^10.0.0"
+  }
+}

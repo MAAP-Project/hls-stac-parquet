@@ -1,0 +1,35 @@
+# CDK and Node.js
+node_modules/
+lib/
+cdk.out/
+*.js
+*.js.map
+*.d.ts
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencies
+package-lock.json
+yarn.lock
+
+# CDK Context
+cdk.context.json
