@@ -61,8 +61,49 @@ hls-stac-parquet repartition /path/to/daily/files /path/to/partitioned/output --
 
 ## Python API
 
+The package provides both a command-line interface and a Python API for programmatic usage.
+
+### High-Level API
+
 ```python
-"""Example usage of the HLS STAC to Parquet conversion functions."""
+import hls_stac_parquet
+
+# Process a single day
+results = hls_stac_parquet.process_date_range(
+    start_date="2024-05-15",
+    output_dir="./output"
+)
+
+# Process a date range in parallel
+results = hls_stac_parquet.process_date_range(
+    start_date="20240510",
+    end_date="20240515",
+    output_dir="./output",
+    parallel=True
+)
+
+# Process an entire month
+results = hls_stac_parquet.process_month(
+    year_month="202405",
+    output_dir="./output",
+    parallel=True
+)
+
+# Get summary statistics
+stats = hls_stac_parquet.get_summary_stats(results)
+print(f"Success rate: {stats['success_rate']:.1%}")
+
+# Repartition files by year-month
+hls_stac_parquet.repartition_by_year_month(
+    source_dir="./daily_files",
+    destination_dir="./partitioned_files"
+)
+```
+
+### Low-Level API
+
+```python
+"""Example usage of the low-level HLS STAC to Parquet conversion functions."""
 import asyncio
 
 from obstore.store import LocalStore
@@ -87,6 +128,8 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+For detailed API documentation and examples, see [API_USAGE.md](API_USAGE.md).
 
 ## Development
 

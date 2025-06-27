@@ -6,7 +6,7 @@ from typing import Any, Dict
 
 import rustac
 
-from .cmr import collect_cmr_results, create_hls_query, extract_stac_json_links
+from .cmr_api import collect_cmr_results, create_hls_query, extract_stac_json_links
 from .fetch import fetch_stac_items
 
 logger = logging.getLogger()

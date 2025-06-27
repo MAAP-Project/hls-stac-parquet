@@ -14,6 +14,7 @@ def create_hls_query(
     """Create a CMR granule query for HLS data.
 
     Args:
+        collection_concept_ids: List of collection concept IDs. Defaults to HLS collections.
         bounding_box: Tuple of (west, south, east, north) coordinates
         temporal: Tuple of (start_date, end_date) in ISO format
 

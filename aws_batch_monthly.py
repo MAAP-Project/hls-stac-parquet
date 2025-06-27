@@ -219,17 +219,6 @@ def main():
             logger.error(f"Processing failed: {e}")
             return 1
 
-        finally:
-            # Log cleanup info - TemporaryDirectory will handle actual cleanup
-            if not args.no_cleanup:
-                logger.info(
-                    f"Temporary directory will be automatically cleaned up: {temp_dir}"
-                )
-            else:
-                logger.info(
-                    f"--no-cleanup specified, but TemporaryDirectory will still clean up: {temp_dir}"
-                )
-
 
 if __name__ == "__main__":
     main()
