@@ -6,6 +6,11 @@ from urllib.parse import ParseResult, urlparse
 import httpx
 from cmr import GranuleQuery
 
+HlsCollectionConceptIds = Literal[
+    "C2021957657-LPCLOUD",  # HLSL30
+    "C2021957295-LPCLOUD",  # HLSS30
+]
+
 
 def create_hls_query(
     bounding_box: tuple[float, float, float, float] | None = None,
@@ -22,12 +27,7 @@ def create_hls_query(
         Configured GranuleQuery object
     """
 
-    query = GranuleQuery().collection_concept_id(
-        [
-            "C2021957657-LPCLOUD",  # HLSL30
-            "C2021957295-LPCLOUD",  # HLSS30
-        ]
-    )
+    query = GranuleQuery().collection_concept_id()
 
     if bounding_box:
         query = query.bounding_box(*bounding_box)
