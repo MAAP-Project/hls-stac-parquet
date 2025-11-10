@@ -1,18 +1,20 @@
 """CMR query functions for HLS data."""
 
+from enum import StrEnum
 from typing import Any, AsyncGenerator, Dict, List
 from urllib.parse import ParseResult, urlparse
 
 import httpx
 from cmr import GranuleQuery
 
-HlsCollectionConceptIds = Literal[
-    "C2021957657-LPCLOUD",  # HLSL30
-    "C2021957295-LPCLOUD",  # HLSS30
-]
+
+class HlsCollectionConceptId(StrEnum):
+    HLSL30 = "C2021957657-LPCLOUD"
+    HLSS30 = "C2021957295-LPCLOUD"
 
 
 def create_hls_query(
+    collection_concept_id: HlsCollectionConceptId,
     bounding_box: tuple[float, float, float, float] | None = None,
     temporal: tuple[str, str] | None = None,
 ) -> GranuleQuery:
@@ -27,7 +29,7 @@ def create_hls_query(
         Configured GranuleQuery object
     """
 
-    query = GranuleQuery().collection_concept_id()
+    query = GranuleQuery().collection_concept_id(collection_concept_id)
 
     if bounding_box:
         query = query.bounding_box(*bounding_box)
