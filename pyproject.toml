@@ -37,6 +37,7 @@ version-file = "src/hls_stac_parquet/_version.py"
 dev = [
     "hatch-vcs>=0.5.0",
     "ipython>=9.7.0",
+    "pre-commit>=4.4.0",
     "pytest>=8.3.5",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
