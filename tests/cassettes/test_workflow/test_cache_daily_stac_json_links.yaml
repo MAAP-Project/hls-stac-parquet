@@ -1,0 +1,270 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      client-id:
+      - nasa-maap-hls-stac-geoparquet; contact henry@developmentseed.org
+      connection:
+      - keep-alive
+      host:
+      - cmr.earthdata.nasa.gov
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cmr.earthdata.nasa.gov/search/granules.json?collection_concept_id[]=C2021957657-LPCLOUD&bounding_box=-93.0,46.0,-92.0,47.0&temporal[]=2025-10-01T00:00:00Z,2025-10-01T23:59:59Z&page_size=2000
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/01PwWqEMBT8lSUHTxoTNSsJLD3YQg8L28P24rJINr5qiiZiYmm77L83tj0sDI/H
+        DPPezBW9AbRIXNEytdKvK8pIxhJKA44ZEYwJSjHhtEYx0qveez85kaZqnDHI2ffBKLGRTuLOfoii
+        yFMXeNWn3SzNMoDD786aB2WHAZTX1jTKGgWTb3R7Ou+q8JByVm5Zmexfqv3h9TG62MW02nTNxX7u
+        Ep5jEhfbMBKerWuJSeRhnOwsh3DhLzFJCD0SIn5Rx3dklgvGA+pokh00Tn9D8BASGnntBwilnqrn
+        w+Y/72YEL9dSQQfj5y8kTufb7QfIAROYLAEAAA==
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - CMR-Hits, CMR-Request-Id, X-Request-Id, CMR-Scroll-Id, CMR-Search-After, CMR-Timed-Out,
+        CMR-Shapefile-Original-Point-Count, CMR-Shapefile-Simplified-Point-Count
+      CMR-Hits:
+      - '0'
+      CMR-Request-Id:
+      - 47e03050-c716-4899-bda0-1f05466c5a34
+      CMR-Took:
+      - '350'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-MD5:
+      - 9dd55f359568eebd40885458e9087b97
+      Content-SHA1:
+      - e10d8963acc31ff502ff004533366b810452535d
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Tue, 11 Nov 2025 20:55:11 GMT
+      Server:
+      - ServerTokens ProductOnly
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      Via:
+      - 1.1 567dbc37309dd51240ea1f3d6d3f29f4.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - gdPJJDo3JYLYdWAejOdvH5C2m8XAITGN0BLziP5So8983Gyn_xiqjA==
+      X-Amz-Cf-Pop:
+      - MSP50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Request-Id:
+      - gdPJJDo3JYLYdWAejOdvH5C2m8XAITGN0BLziP5So8983Gyn_xiqjA==
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      client-id:
+      - nasa-maap-hls-stac-geoparquet; contact henry@developmentseed.org
+      connection:
+      - keep-alive
+      host:
+      - cmr.earthdata.nasa.gov
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cmr.earthdata.nasa.gov/search/granules.json?collection_concept_id[]=C2021957657-LPCLOUD&bounding_box=-93.0,46.0,-92.0,47.0&temporal[]=2025-10-02T00:00:00Z,2025-10-02T23:59:59Z&page_size=2000
+  response:
+    body:
+      string: !!binary |
+        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
+        Q/X7mAAA
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - CMR-Hits, CMR-Request-Id, X-Request-Id, CMR-Scroll-Id, CMR-Search-After, CMR-Timed-Out,
+        CMR-Shapefile-Original-Point-Count, CMR-Shapefile-Simplified-Point-Count
+      CMR-Hits:
+      - '3'
+      CMR-Request-Id:
+      - 72e123f6-6d26-4296-8048-20edaf147869
+      CMR-Search-After:
+      - '["lpcloud",1759424679336,3790086838]'
+      CMR-Took:
+      - '277'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-MD5:
+      - 1cb65c14b52b0c452c245eeefa280dc1
+      Content-SHA1:
+      - 8d8ad6ab93ab6fe5bda8742b626080a3bcc26739
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Tue, 11 Nov 2025 20:59:03 GMT
+      Server:
+      - ServerTokens ProductOnly
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      Via:
+      - 1.1 ecac0584adf202eebfc7cd3800ff47ae.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - pLjCXdDW3jyfPq2Cb6G3tceCzy_4Po7ODvCF0hZkhBbjklIB01vroA==
+      X-Amz-Cf-Pop:
+      - MSP50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Request-Id:
+      - pLjCXdDW3jyfPq2Cb6G3tceCzy_4Po7ODvCF0hZkhBbjklIB01vroA==
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      client-id:
+      - nasa-maap-hls-stac-geoparquet; contact henry@developmentseed.org
+      cmr-search-after:
+      - '["lpcloud",1759424679336,3790086838]'
+      connection:
+      - keep-alive
+      host:
+      - cmr.earthdata.nasa.gov
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cmr.earthdata.nasa.gov/search/granules.json?collection_concept_id[]=C2021957657-LPCLOUD&bounding_box=-93.0,46.0,-92.0,47.0&temporal[]=2025-10-02T00:00:00Z,2025-10-02T23:59:59Z&page_size=2000
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/01PwWqEMBT8lSUHTxqfUdcaWHqwhR4WtoftxWWRbHzVFE3ExNJ22X9vbHsoPB7D
+        DPPezJW8IraEX8kytcKtkDBgeZQkfo4MeF5yyGiS3NUkJGrVe+cmy+NYjjNFMbveGwXVwgramXee
+        ZWlsPS/7uJuFXga09M0afS/NMKB0yuhGGi1xco1qT+dd5R8mZV5s8yLaP1f7w8tDcDGLbpXumov5
+        2EVlSiHMtn5FJVthQSFwOE5mFoO/8JsYImBHAP4zdfiPZOlaIy/rYBIdNlZ9ofcA+EZOuQF9qcfq
+        6bD5y7sZ0Ym1lNdRu/mT8NP5dvsG/tW8xSwBAAA=
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - CMR-Hits, CMR-Request-Id, X-Request-Id, CMR-Scroll-Id, CMR-Search-After, CMR-Timed-Out,
+        CMR-Shapefile-Original-Point-Count, CMR-Shapefile-Simplified-Point-Count
+      CMR-Hits:
+      - '3'
+      CMR-Request-Id:
+      - f34531c0-d81a-45f9-b624-348c1d88128f
+      CMR-Took:
+      - '328'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-MD5:
+      - 709bdad325edc20c3d08e37a00bdd6b1
+      Content-SHA1:
+      - ea22aa6b8105ce55f7ee97e5c4beaca0ec363709
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Tue, 11 Nov 2025 20:59:04 GMT
+      Server:
+      - ServerTokens ProductOnly
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      Via:
+      - 1.1 ecac0584adf202eebfc7cd3800ff47ae.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - 80O4H1ctaiwYdtdekwgHbLBx0XwG6g3fTCWcn7FGPX9K2K2YcjMBiA==
+      X-Amz-Cf-Pop:
+      - MSP50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Request-Id:
+      - 80O4H1ctaiwYdtdekwgHbLBx0XwG6g3fTCWcn7FGPX9K2K2YcjMBiA==
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

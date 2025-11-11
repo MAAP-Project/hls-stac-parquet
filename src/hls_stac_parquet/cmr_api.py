@@ -1,16 +1,12 @@
 """CMR query functions for HLS data."""
 
-from enum import StrEnum
 from typing import Any, AsyncGenerator, Dict, List
 from urllib.parse import ParseResult, urlparse
 
 import httpx
 from cmr import GranuleQuery
 
-
-class HlsCollectionConceptId(StrEnum):
-    HLSL30 = "C2021957657-LPCLOUD"
-    HLSS30 = "C2021957295-LPCLOUD"
+from hls_stac_parquet.constants import CLIENT_ID, HlsCollectionConceptId
 
 
 def create_hls_query(
@@ -30,6 +26,10 @@ def create_hls_query(
     """
 
     query = GranuleQuery().collection_concept_id(collection_concept_id)
+
+    query.headers = {
+        "client-id": CLIENT_ID,
+    }
 
     if bounding_box:
         query = query.bounding_box(*bounding_box)
@@ -72,7 +72,7 @@ async def get_cmr_results_async(
 
 
 def extract_stac_json_links(
-    results: List[Dict[str, Any]], prefix: str = "https"
+    results: List[Dict[str, Any]], protocol: str = "https"
 ) -> List[ParseResult]:
     """Extract STAC JSON links from CMR results.
 
@@ -96,7 +96,7 @@ def extract_stac_json_links(
                 if isinstance(link, dict)
                 and "href" in link
                 and link["href"].endswith("stac.json")
-                and link["href"].startswith(prefix)
+                and link["href"].startswith(protocol)
             )
             stac_links.append(urlparse(url))
         except (StopIteration, KeyError, TypeError):

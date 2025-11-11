@@ -1,0 +1,194 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      client-id:
+      - nasa-maap-hls-stac-geoparquet; contact henry@developmentseed.org
+      connection:
+      - keep-alive
+      host:
+      - cmr.earthdata.nasa.gov
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cmr.earthdata.nasa.gov/search/granules.json?collection_concept_id[]=C2021957657-LPCLOUD&bounding_box=-93.0,46.0,-92.0,47.0&temporal[]=2025-10-02T00:00:00Z,2025-10-02T23:59:59Z&page_size=2000
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/+2dDW/bthaG/wrhAcUGxDKpbxkYBqf2ugBpsyVudm+LQJAl2tYqS5ooJ8uK/vdL
+        ynI+dqU2kSJK4gwYgUtL4uFzDinx9Lz258ESY28w/jzYxp6TsrcDGcraECH6mstoDNFYRZKiGB8G
+        RwOffb5O05iMRyN3k0jYSdI1PdGRQoc40iq6HquqMiK03V2PVokTbgNMpD9IFP7kRkGA3dSPQtuN
+        QhfHqe17H69+fE07RJZm6JoxPP319enZ++mrRbQNPT9c2Yvorx+HliLBI1Wnf4aWzN4aEnyV4k0c
+        JU5Ar7CzGA6hPIdwnL0+HD1olJWxZtHXh1exs8I28f/G9BwI6YhSPw0wHdTs9S9nILcXbHDqsEHR
+        z3GYJreD8cfPgziJvK2LEzs/ys5g/HJ6IZ0qUJojbf77O4l1KhvaHBlQVazs+hvaYUox3ZHNTELG
+        GKpjxaJkdUbWDaKtR7lc44QeqKq06Z8eoeepc4TGmjxWkKRZFjuPmUlwemcMOHVCjzgpOItx4jDY
+        TpC1gZMNHXsCLrbJ0nExOMdL5g2HOgKwj+dnE3Cc+Kt1GmJCwNTxg1vwJogW9HwFbsA1BZ/3Z7uU
+        SmZn7q4HHL/KQ8ov4kZRQr1LR2eTW0IdSU98MzubzuYnr7M+bu2QWWIvA2dFP5tO/rtHiUPv6yAz
+        EG8Uw7QsU1UtbXhvY0SHR3sN7GWUbJw09zpiFi2S6IbgvL802eKjQRwFt6soJNT5Hwc0+Exd02mU
+        AhaClm4hXdcADURTk01dR1mzpiNLRWjXrBgQmSCLXQhl3VDB/iKWdd8s3zc/vvbg6oqBKpgy1O6C
+        KcPGFwZ+iG3HdakHH42Ftn8iWRQnOMinMJ3BmPjxEntSlKxGIRnRt/nERRIaMU9/98Cz0+gmDCLH
+        A992sXSMoJT6S3r2OqFx5oTMizgcvr/Imx4sI9nqEdBYd9z75SSbDndryiiIh2z6sT8p5YG9ETWC
+        2QBlOPq2PU845M7kL0fcIEHUO0i5yTwhaf2DpHGHpPQPksIdktU/SBZnSBeTSd8g7U3mB+nyQ+8g
+        7U3mB+nnjUM+9Q3TvdEc1yXUv8cAxP8xQO4dpNxknpDU/kFSed/h+rd4X3BfvI+h0TdIe5N5QtL7
+        B0nn/azUvwfKy0oPlER5iGi+9glgWRdADb32PUyA5yfUYODt4e3SNODad8CFAtIIpGu8z0B+FRdR
+        qC2dzYgIyKFS0kNEDlXyGiJyqJK6EJFDleyEeByqJSDE41AtxyAeh6pJBPFIVMsTCMihUipARA5V
+        dvvicai2oRePQ7U9u4gcqmzLxeNQbee9r9apmKJg1TluVqEEvp/9Zz57N51NwdvZfDKdzCc/vHzi
+        YrsIfPfF2d2Pgi89iVWB/bUJ+LBrLvTyYbwAvJoT8dkgH0/OHkRXu4D6EEJO7AMcenHkhykbfYLT
+        xMfXGOQ1j8ktcBPs4TD1nYBicgLfA8soAcTZ4GGCVz5dzHKmRNnT/P7yZPY7OJ+dTuaU3cm7n8/O
+        307mJ2fvXm6iEuWBXc8EsSvBq7oM/RGv+rJUZ7bWZcPvdt8wBD9c48TP6lzzWkUcrtL1gBV5vj2m
+        Rj3//ym+HQW7kwqql/NPfvqzqCq52N5qU/0JkRr52WUQlDSoG4zpnRegzNeWm5ubIli7OmDCYoVN
+        qLo2eZG73dBLZmXLTzMsn8lbsiKZRftLkBHSLZPxst8TnNhvtnSK2JeyFHvLTplp6FZm5WR+PLUv
+        kWZn05lkddudMxYhlMWh/dvWdz/lUK9hW1RXfrreLiQ32oxYSDLLhlMaoMNzTKJtQle/0SKIFqON
+        44ej+DZdR+Eo3aZRwu5O2Tjm+b8kP74NF90cQppg/GgIxE38ON0N4GL76+y863YvHLIerQMyXGyD
+        T8P9/ambVt8HTPI4Qs439S1+8nrrxDGm55HSR5TBlytmzLc1KZcvpkmRlcFXNCnqWDYkS9a6rkn5
+        Px68NSmGjNSX06RoJjJ0MLRUSUGyipBWoiZhkhQENWhqatZsGkjRLSNXquiysTvapOfJlp41q5qF
+        VHN3bYUerhqgsMd+CFWK/d5e8WWxPU84pMniy5IeWyuZqw6pwZK5kh5brHeujqnReuey+G2rtrDG
+        lGuutrCkx9YkBtUhNSgxKHVLS0XhdSKpsaLw0h5b0obVgdSYNqy0x5a0YXUgNaYNK7untlXKW+Mx
+        oDltWKlbWioKrxNJjRWFl/bYklClDqTGhCqlPbakfK4DqTHlc9lDR//WpGpFDvU2uS19G0OdTW5j
+        38ZQGrv9ywQIJUzgnRERj4NYZYX8sxrikRCrwJJ3bkI8DmIVovPOMIjIQSQJF+88gXgcxCpE573b
+        F5GDSJJf3nt28TiI9ZUAvHfeT5ZaFPfaKaFKZXbNC1VKfNYpoUr10PtXCFW6EV3dFqp0IYQOQpVn
+        L0P8hSrVA0UgoUp9CAehykGochCqHIQqB6HKQajSAauFE6q8fSmhSiaeKBaqKGNIT7UkU1U6L1T5
+        J4+mhCraGCqSjMyHQhULQlM3FfOFhCqaZGmmrJlGphuRLQQhRIA16xqkDy7Zz6EosqUY7MdTdHq0
+        optWLmBRFFkxs1ZVR7os59oTVdOhAYov3RNJSqGHW5SkFNrzhEMalaSU9NhatU51SM39dkpJj21K
+        UipjalaSUuaatsq/a0RTc+XfxT22V/5dGVKT5d9lbmlLbVEjkppTW5TdLtqqR61xh2uuHrXMLW0J
+        CWpEUnNCgrIe21KA1YDUnAKsuMf2auQrQ2qyRr7MLW2pLWpEUnNqi5L7aWuq1OqPAA2qUsvc0pa4
+        qUYkNSduKuuxLRF4DUjNicBLVsH+TTfBCq05Z0QE5CCWRIl7VkM8EoKVnHPOTYjHQTApBucMg4Ac
+        xJIgcM4TiMdBsNJ7zrt98TgIJnLmvGcXkYNQEmfOO++niyoKe+2WJKUqOw6SlGKfdUuSUjn0/h2S
+        lE5EV8clKR0IoYMk5dnLUAuSlMqBIpIkpTaEgyTlIEk5SFIOkpSDJOUgSemA1T2SpFx9+fI/0q9O
+        qPuYAAA=
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - CMR-Hits, CMR-Request-Id, X-Request-Id, CMR-Scroll-Id, CMR-Search-After, CMR-Timed-Out,
+        CMR-Shapefile-Original-Point-Count, CMR-Shapefile-Simplified-Point-Count
+      CMR-Hits:
+      - '3'
+      CMR-Request-Id:
+      - 3d700bc9-4401-47f5-a966-f93259993db2
+      CMR-Search-After:
+      - '["lpcloud",1759424679336,3790086838]'
+      CMR-Took:
+      - '330'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-MD5:
+      - 52fc00590fd53d451d69ea9d1fdcabb6
+      Content-SHA1:
+      - a9043a779aa15d1fe03de8ef6bdaace247927aa5
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Tue, 11 Nov 2025 21:01:41 GMT
+      Server:
+      - ServerTokens ProductOnly
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      Via:
+      - 1.1 527b7205cd03db5d60e5a372d52951ee.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - CtGYhzAp_YnB5ydYiKdHaABVs3hViNd1snCqIgi26JvtatzLaMF4pA==
+      X-Amz-Cf-Pop:
+      - MSP50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Request-Id:
+      - CtGYhzAp_YnB5ydYiKdHaABVs3hViNd1snCqIgi26JvtatzLaMF4pA==
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      client-id:
+      - nasa-maap-hls-stac-geoparquet; contact henry@developmentseed.org
+      cmr-search-after:
+      - '["lpcloud",1759424679336,3790086838]'
+      connection:
+      - keep-alive
+      host:
+      - cmr.earthdata.nasa.gov
+      user-agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cmr.earthdata.nasa.gov/search/granules.json?collection_concept_id[]=C2021957657-LPCLOUD&bounding_box=-93.0,46.0,-92.0,47.0&temporal[]=2025-10-02T00:00:00Z,2025-10-02T23:59:59Z&page_size=2000
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAA/01PwWqEMBT8lSUHTxqTqGsNLD3YQg8L28P24rJINr5qiibBxNJ22X9vbHsoDI/H
+        DPPezBW9AnSIX9FiO+HXFTHCioTSgCOjnFCeU1xmdw2KkVr1wXvreJrKacYgZj8Eo8BaOIF7887z
+        PEtd4OWQ9rPQywgOvzmj76UZR5BeGd1KoyVY36rudN7V4SGtinJblMn+ud4fXh6ii1l0p3TfXszH
+        LqkyTOJ8G0ZSsXUtMYk8TNbMYgwXfhOThLAjIfwHTfyPZBkvqoAmsqKH1qkvCB5CQiOv/Aih1GP9
+        dNj85d1M4MVaKuig/fyJ+Ol8u30DMVveMywBAAA=
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - CMR-Hits, CMR-Request-Id, X-Request-Id, CMR-Scroll-Id, CMR-Search-After, CMR-Timed-Out,
+        CMR-Shapefile-Original-Point-Count, CMR-Shapefile-Simplified-Point-Count
+      CMR-Hits:
+      - '3'
+      CMR-Request-Id:
+      - c42a5bff-5f1b-4379-8306-d40623893625
+      CMR-Took:
+      - '316'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-MD5:
+      - 406c260ce7d6f088e3c30eb8f3fd9c6d
+      Content-SHA1:
+      - fd007cddde30214848459c1fd8adbf3218cd473f
+      Content-Type:
+      - application/json;charset=utf-8
+      Date:
+      - Tue, 11 Nov 2025 21:01:41 GMT
+      Server:
+      - ServerTokens ProductOnly
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Accept-Encoding
+      Via:
+      - 1.1 527b7205cd03db5d60e5a372d52951ee.cloudfront.net (CloudFront)
+      X-Amz-Cf-Id:
+      - feHCor0Z3AA2GqYwC0MUJLNYtY3naGEGM2JbePKbhJizkjQdtF1SlQ==
+      X-Amz-Cf-Pop:
+      - MSP50-P2
+      X-Cache:
+      - Miss from cloudfront
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Request-Id:
+      - feHCor0Z3AA2GqYwC0MUJLNYtY3naGEGM2JbePKbhJizkjQdtF1SlQ==
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1
