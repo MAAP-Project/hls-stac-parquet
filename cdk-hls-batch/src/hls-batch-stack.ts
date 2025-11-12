@@ -37,7 +37,8 @@ export interface HlsBatchStackProps extends cdk.StackProps {
 export class HlsBatchStack extends cdk.Stack {
   public readonly bucket: s3.Bucket;
   public readonly jobQueue: batch.JobQueue;
-  public readonly jobDefinition: batch.EcsJobDefinition;
+  public readonly cacheDailyJobDefinition: batch.EcsJobDefinition;
+  public readonly writeMonthlyJobDefinition: batch.EcsJobDefinition;
 
   constructor(scope: Construct, id: string, props?: HlsBatchStackProps) {
     super(scope, id, props);
@@ -137,49 +138,102 @@ export class HlsBatchStack extends cdk.Stack {
       ],
     });
 
-    this.jobDefinition = new batch.EcsJobDefinition(
-      this,
-      "HlsBatchJobDefinition",
+    // Create Docker image asset (shared by both job definitions)
+    const containerImage = ecs.ContainerImage.fromAsset(
+      path.join(__dirname, "../../"),
       {
-        jobDefinitionName: "hls-stac-parquet-monthly",
+        file: "cdk-hls-batch/Dockerfile",
+      },
+    );
+
+    // Job Definition 1: Cache Daily STAC JSON Links
+    this.cacheDailyJobDefinition = new batch.EcsJobDefinition(
+      this,
+      "CacheDailyJobDefinition",
+      {
+        jobDefinitionName: "hls-cache-daily-stac-links",
         container: new batch.EcsEc2ContainerDefinition(
           this,
-          "HlsBatchContainer",
+          "CacheDailyContainer",
           {
-            image: ecs.ContainerImage.fromAsset(
-              path.join(__dirname, "../../"),
-              {
-                file: "cdk-hls-batch/Dockerfile",
-              },
-            ),
+            image: containerImage,
+            cpu: 2,
+            memory: cdk.Size.mebibytes(8192),
+            jobRole,
+            executionRole: jobExecutionRole,
+            logging: ecs.LogDriver.awsLogs({
+              logGroup,
+              streamPrefix: "hls-cache-daily",
+            }),
+            environment: {
+              AWS_DEFAULT_REGION: this.region,
+            },
+            command: [
+              "Ref::jobType",
+              "Ref::collection",
+              "Ref::date",
+              "Ref::dest",
+              "Ref::boundingBox",
+              "Ref::protocol",
+              "Ref::skipExisting",
+            ],
+          },
+        ),
+        parameters: {
+          jobType: "cache-daily",
+          collection: "",
+          date: "",
+          dest: `s3://${this.bucket.bucketName}`,
+          boundingBox: "none",
+          protocol: "s3",
+          skipExisting: "true",
+        },
+        retryAttempts: 3,
+        timeout: cdk.Duration.minutes(30),
+      },
+    );
+
+    // Job Definition 2: Write Monthly STAC GeoParquet
+    this.writeMonthlyJobDefinition = new batch.EcsJobDefinition(
+      this,
+      "WriteMonthlyJobDefinition",
+      {
+        jobDefinitionName: "hls-write-monthly-stac-parquet",
+        container: new batch.EcsEc2ContainerDefinition(
+          this,
+          "WriteMonthlyContainer",
+          {
+            image: containerImage,
             cpu: 4,
             memory: cdk.Size.mebibytes(16384),
             jobRole,
             executionRole: jobExecutionRole,
             logging: ecs.LogDriver.awsLogs({
               logGroup,
-              streamPrefix: "hls-batch",
+              streamPrefix: "hls-write-monthly",
             }),
             environment: {
               AWS_DEFAULT_REGION: this.region,
-              MAX_CONCURRENT_DAYS: "4",
-              MAX_CONCURRENT_PER_DAY: "10",
-              TEMP_DIR: "/tmp/hls-processing",
             },
             command: [
+              "Ref::jobType",
+              "Ref::collection",
               "Ref::yearMonth",
-              "Ref::s3Bucket",
-              "Ref::s3Prefix",
-              "Ref::parallel",
+              "Ref::dest",
+              "Ref::version",
+              "Ref::requireCompleteLinks",
+              "Ref::skipExisting",
             ],
           },
         ),
-        // platformCapabilities: [batch.PlatformCapabilities.EC2],
         parameters: {
+          jobType: "write-monthly",
+          collection: "",
           yearMonth: "",
-          s3Bucket: "",
-          s3Prefix: "v1",
-          parallel: "true",
+          dest: `s3://${this.bucket.bucketName}`,
+          version: "none",
+          requireCompleteLinks: "true",
+          skipExisting: "false",
         },
         retryAttempts: 3,
         timeout: cdk.Duration.minutes(60),
@@ -202,21 +256,37 @@ export class HlsBatchStack extends cdk.Stack {
       description: "AWS Batch job queue ARN",
     });
 
-    new cdk.CfnOutput(this, "JobDefinitionArn", {
-      value: this.jobDefinition.jobDefinitionArn,
-      description: "AWS Batch job definition ARN",
+    new cdk.CfnOutput(this, "CacheDailyJobDefinitionArn", {
+      value: this.cacheDailyJobDefinition.jobDefinitionArn,
+      description: "AWS Batch job definition ARN for caching daily STAC links",
     });
 
-    // Output example job submission command
-    new cdk.CfnOutput(this, "ExampleJobCommand", {
+    new cdk.CfnOutput(this, "WriteMonthlyJobDefinitionArn", {
+      value: this.writeMonthlyJobDefinition.jobDefinitionArn,
+      description: "AWS Batch job definition ARN for writing monthly parquet",
+    });
+
+    // Output example job submission commands
+    new cdk.CfnOutput(this, "ExampleCacheDailyCommand", {
       value: [
         "aws batch submit-job",
-        '--job-name "hls-processing-$(date +%Y%m%d-%H%M%S)"',
+        '--job-name "hls-cache-daily-$(date +%Y%m%d-%H%M%S)"',
         `--job-queue ${this.jobQueue.jobQueueName}`,
-        `--job-definition ${this.jobDefinition.jobDefinitionName}`,
-        `--parameters 'yearMonth=202401,s3Bucket=${this.bucket.bucketName},s3Prefix=hls-data'`,
+        `--job-definition ${this.cacheDailyJobDefinition.jobDefinitionName}`,
+        `--parameters 'collection=HLSL30,date=2024-01-15,dest=s3://${this.bucket.bucketName}/data'`,
       ].join(" \\\n  "),
-      description: "Example command to submit a batch job",
+      description: "Example command to submit a cache-daily batch job",
+    });
+
+    new cdk.CfnOutput(this, "ExampleWriteMonthlyCommand", {
+      value: [
+        "aws batch submit-job",
+        '--job-name "hls-write-monthly-$(date +%Y%m%d-%H%M%S)"',
+        `--job-queue ${this.jobQueue.jobQueueName}`,
+        `--job-definition ${this.writeMonthlyJobDefinition.jobDefinitionName}`,
+        `--parameters 'collection=HLSL30,yearMonth=2024-01-01,dest=s3://${this.bucket.bucketName}/data'`,
+      ].join(" \\\n  "),
+      description: "Example command to submit a write-monthly batch job",
     });
 
     // Add tags
