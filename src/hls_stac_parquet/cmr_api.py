@@ -6,11 +6,11 @@ from urllib.parse import ParseResult, urlparse
 import httpx
 from cmr import GranuleQuery
 
-from hls_stac_parquet.constants import CLIENT_ID, HlsCollectionConceptId
+from hls_stac_parquet.constants import CLIENT_ID, HlsCollection
 
 
 def create_hls_query(
-    collection_concept_id: HlsCollectionConceptId,
+    collection: HlsCollection,
     bounding_box: tuple[float, float, float, float] | None = None,
     temporal: tuple[str, str] | None = None,
 ) -> GranuleQuery:
@@ -25,7 +25,7 @@ def create_hls_query(
         Configured GranuleQuery object
     """
 
-    query = GranuleQuery().collection_concept_id(collection_concept_id)
+    query = GranuleQuery().collection_concept_id(collection.concept_id)
 
     query.headers = {
         "client-id": CLIENT_ID,

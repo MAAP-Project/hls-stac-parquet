@@ -4,16 +4,17 @@ import json
 import logging
 import urllib.parse
 from datetime import datetime, timedelta
-from typing import List, Literal
+from typing import Annotated, List, Literal
 from urllib.parse import ParseResult
 
 import obstore
 import rustac
+import typer
 from obstore.store import ObjectStore, from_url
 
 from hls_stac_parquet._version import __version__
 from hls_stac_parquet.cmr_api import (
-    HlsCollectionConceptId,
+    HlsCollection,
     collect_cmr_results,
     create_hls_query,
     extract_stac_json_links,
@@ -25,7 +26,14 @@ from hls_stac_parquet.constants import (
 )
 from hls_stac_parquet.fetch import fetch_stac_items
 
-logger = logging.getLogger()
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+)
+
+logging.getLogger("httpx").setLevel("WARN")
+logging.getLogger("stac_io").setLevel("WARN")
+
+logger = logging.getLogger("hls-stac-geoparquet-archive")
 
 
 async def _check_exists(store, path) -> bool:
@@ -37,13 +45,13 @@ async def _check_exists(store, path) -> bool:
 
 
 async def collect_stac_json_links(
-    collection_concept_id: HlsCollectionConceptId,
+    collection: HlsCollection,
     bounding_box: tuple[float, float, float, float] | None = None,
     temporal: tuple[str, str] | None = None,
     protocol: Literal["s3", "https"] = "https",
 ) -> List[ParseResult]:
     query = create_hls_query(
-        collection_concept_id=collection_concept_id,
+        collection=collection,
         bounding_box=bounding_box,
         temporal=temporal,
     )
@@ -63,16 +71,38 @@ async def write_stac_links(
 
 
 async def cache_daily_stac_json_links(
-    collection_concept_id: HlsCollectionConceptId,
-    date: datetime,
-    dest: str,
-    bounding_box: tuple[float, float, float, float] | None = None,
-    protocol: Literal["s3", "https"] = "https",
-    skip_existing: bool = False,
+    collection: Annotated[
+        HlsCollection, typer.Argument(help="HLS collection to query (HLSL30 or HLSS30)")
+    ],
+    date: Annotated[datetime, typer.Argument(help="Date to query for STAC items")],
+    dest: Annotated[
+        str,
+        typer.Argument(
+            help="Destination URL for storing cached links (e.g., s3://bucket/path)"
+        ),
+    ],
+    bounding_box: Annotated[
+        tuple[float, float, float, float] | None,
+        typer.Option(
+            help="Spatial bounding box as (min_lon, min_lat, max_lon, max_lat)"
+        ),
+    ] = None,
+    protocol: Annotated[
+        Literal["s3", "https"], typer.Option(help="Protocol to use for STAC JSON links")
+    ] = "https",
+    skip_existing: Annotated[
+        bool, typer.Option(help="Skip processing if output file already exists")
+    ] = False,
 ) -> None:
+    """
+    Cache daily STAC JSON links from CMR to object storage.
+
+    Queries CMR for HLS STAC items on a specific date and writes the
+    STAC JSON links to object storage for later retrieval.
+    """
     store = from_url(dest)
     out_path = LINK_PATH_FORMAT.format(
-        collection_id=collection_concept_id.collection_id,
+        collection_id=collection.collection_id,
         year=str(date.year),
         month=str(date.month),
         day=str(date.day),
@@ -80,14 +110,14 @@ async def cache_daily_stac_json_links(
 
     if skip_existing:
         if await _check_exists(store, out_path):
-            logger.info(f"{out_path} found in {dest}... skipping")
+            logger.info(f"{dest}/{out_path} already exists ... skipping")
             return
 
     start_datetime = datetime(year=date.year, month=date.month, day=date.day)
     end_datetime = start_datetime + timedelta(days=1) - timedelta(seconds=1)
 
     stac_links = await collect_stac_json_links(
-        collection_concept_id=collection_concept_id,
+        collection=collection,
         bounding_box=bounding_box,
         temporal=(start_datetime.isoformat(), end_datetime.isoformat()),
         protocol=protocol,
@@ -101,19 +131,48 @@ async def cache_daily_stac_json_links(
 
 
 async def write_monthly_stac_geoparquet(
-    collection_concept_id: HlsCollectionConceptId,
-    year: int,
-    month: int,
-    dest: str,
-    version: str = __version__,
-    require_complete_links: bool = False,
-    skip_existing: bool = False,
+    collection: Annotated[
+        HlsCollection,
+        typer.Argument(help="HLS collection to process (HLSL30 or HLSS30)"),
+    ],
+    yearmonth: Annotated[
+        datetime,
+        typer.Argument(help="Year and month to process (YYYY-MM-DD, day is ignored)"),
+    ],
+    dest: Annotated[
+        str,
+        typer.Argument(
+            help="Destination URL for writing GeoParquet file (e.g., s3://bucket/path)"
+        ),
+    ],
+    version: Annotated[
+        str, typer.Option(help="Version string for output file path")
+    ] = __version__,
+    require_complete_links: Annotated[
+        bool,
+        typer.Option(
+            help="Require all daily link files for the month to exist before processing"
+        ),
+    ] = False,
+    skip_existing: Annotated[
+        bool,
+        typer.Option(help="Skip processing if output GeoParquet file already exists"),
+    ] = False,
 ) -> None:
+    """
+    Write monthly STAC items to GeoParquet format.
+
+    Collects cached STAC JSON links for a given month, fetches all STAC items,
+    and writes them to a GeoParquet file in object storage.
+    """
     store = from_url(dest)
+
+    year = yearmonth.year
+    month = yearmonth.month
 
     out_path = PARQUET_PATH_FORMAT.format(
         version=version,
-        collection_id=collection_concept_id.collection_id,
+        collection_id=collection.collection_id,
         year=str(year),
         month=str(month),
     )
@@ -127,7 +186,7 @@ async def write_monthly_stac_geoparquet(
     stream = obstore.list(
         store,
         prefix=LINK_PATH_PREFIX.format(
-            collection_id=collection_concept_id.collection_id,
+            collection_id=collection.collection_id,
             year=str(year),
             month=str(month),
         ),
@@ -140,9 +199,7 @@ async def write_monthly_stac_geoparquet(
             links = json.loads(bytes(buffer).decode())
             stac_json_links.extend(links)
 
-    logger.info(
-        f"{collection_concept_id.collection_id}: found {len(stac_json_links)} links"
-    )
+    logger.info(f"{collection.collection_id}: found {len(stac_json_links)} links")
 
     if require_complete_links:
         last_date_in_month = datetime(year=year, month=(month + 1), day=1) - timedelta(
@@ -150,7 +207,7 @@ async def write_monthly_stac_geoparquet(
         )
         expected_links = [
             LINK_PATH_FORMAT.format(
-                collection_id=collection_concept_id.collection_id,
+                collection_id=collection.collection_id,
                 year=str(year),
                 month=str(month),
                 day=str(day),
@@ -164,7 +221,7 @@ async def write_monthly_stac_geoparquet(
                 f"found these links:\n{'\n'.join(stac_json_links)}",
             )
 
-    logger.info(f"{collection_concept_id.collection_id}: loading stac items")
+    logger.info(f"{collection.collection_id}: loading stac items")
     stac_items, failed_links = await fetch_stac_items(
         [urllib.parse.urlparse(link) for link in stac_json_links],
         max_concurrent=50,
@@ -174,7 +231,7 @@ async def write_monthly_stac_geoparquet(
         logger.warning(f"failed to retrieve {len(failed_links)} items")
 
     for item in stac_items:
-        item["collection"] = collection_concept_id.collection_id
+        item["collection"] = collection.collection_id
 
     _ = await rustac.write(
         out_path,
