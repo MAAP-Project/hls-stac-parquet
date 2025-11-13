@@ -36,7 +36,8 @@ export interface HlsBatchStackProps extends cdk.StackProps {
 
 export class HlsBatchStack extends cdk.Stack {
   public readonly bucket: s3.Bucket;
-  public readonly jobQueue: batch.JobQueue;
+  public readonly cacheDailyJobQueue: batch.JobQueue;
+  public readonly writeMonthlyJobQueue: batch.JobQueue;
   public readonly cacheDailyJobDefinition: batch.EcsJobDefinition;
   public readonly writeMonthlyJobDefinition: batch.EcsJobDefinition;
 
@@ -47,7 +48,7 @@ export class HlsBatchStack extends cdk.Stack {
     const vpc = new ec2.Vpc(this, "HlsBatchVpc", {
       ipAddresses: ec2.IpAddresses.cidr(props?.vpcCidr || "10.0.0.0/16"),
       maxAzs: 2,
-      natGateways: 1,
+      natGateways: 0,
       subnetConfiguration: [
         {
           cidrMask: 24,
@@ -60,6 +61,11 @@ export class HlsBatchStack extends cdk.Stack {
           subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
         },
       ],
+    });
+
+    // Add S3 VPC endpoint for private S3 access
+    vpc.addGatewayEndpoint("S3Endpoint", {
+      service: ec2.GatewayVpcEndpointAwsService.S3,
     });
 
     // Create S3 bucket for storing parquet data
@@ -104,45 +110,76 @@ export class HlsBatchStack extends cdk.Stack {
       }),
     );
 
-    // Create Batch compute environment
-    const computeEnvironment = new batch.ManagedEc2EcsComputeEnvironment(
-      this,
-      "HlsBatchComputeEnv",
-      {
-        vpc,
-        vpcSubnets: {
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+    // Create Batch compute environment for cache-daily jobs (lightweight I/O tasks)
+    const cacheDailyComputeEnvironment =
+      new batch.ManagedEc2EcsComputeEnvironment(
+        this,
+        "HlsCacheDailyComputeEnv",
+        {
+          vpc,
+          vpcSubnets: {
+            subnetType: ec2.SubnetType.PUBLIC,
+          },
+          maxvCpus: props?.maxvCpus || 8,
+          // Use smaller, general-purpose instances for API calls and JSON writing
+          useOptimalInstanceClasses: true,
+          allocationStrategy: batch.AllocationStrategy.BEST_FIT_PROGRESSIVE,
+          spot: false,
         },
-        instanceTypes: props?.instanceTypes || [
-          ec2.InstanceType.of(ec2.InstanceClass.M5, ec2.InstanceSize.LARGE),
-          ec2.InstanceType.of(ec2.InstanceClass.M5, ec2.InstanceSize.XLARGE),
-          ec2.InstanceType.of(ec2.InstanceClass.C5, ec2.InstanceSize.LARGE),
-          ec2.InstanceType.of(ec2.InstanceClass.C5, ec2.InstanceSize.XLARGE),
-          ec2.InstanceType.of(ec2.InstanceClass.R5, ec2.InstanceSize.LARGE),
-          ec2.InstanceType.of(ec2.InstanceClass.R5, ec2.InstanceSize.XLARGE),
+      );
+
+    // Create Batch compute environment for write-monthly jobs (larger, memory-optimized)
+    const writeMonthlyComputeEnvironment =
+      new batch.ManagedEc2EcsComputeEnvironment(
+        this,
+        "HlsWriteMonthlyComputeEnv",
+        {
+          vpc,
+          vpcSubnets: {
+            subnetType: ec2.SubnetType.PUBLIC,
+          },
+          maxvCpus: props?.maxvCpus || 32,
+          useOptimalInstanceClasses: true,
+          allocationStrategy: batch.AllocationStrategy.BEST_FIT_PROGRESSIVE,
+          spot: false,
+        },
+      );
+
+    // Job queue for cache-daily jobs
+    this.cacheDailyJobQueue = new batch.JobQueue(
+      this,
+      "HlsCacheDailyJobQueue",
+      {
+        priority: 1,
+        computeEnvironments: [
+          {
+            computeEnvironment: cacheDailyComputeEnvironment,
+            order: 1,
+          },
         ],
-        maxvCpus: props?.maxvCpus || 8,
-        useOptimalInstanceClasses: true,
-        allocationStrategy: batch.AllocationStrategy.BEST_FIT_PROGRESSIVE,
-        spot: false,
       },
     );
 
-    this.jobQueue = new batch.JobQueue(this, "HlsBatchJobQueue", {
-      priority: 1,
-      computeEnvironments: [
-        {
-          computeEnvironment,
-          order: 1,
-        },
-      ],
-    });
+    // Job queue for write-monthly jobs
+    this.writeMonthlyJobQueue = new batch.JobQueue(
+      this,
+      "HlsWriteMonthlyJobQueue",
+      {
+        priority: 1,
+        computeEnvironments: [
+          {
+            computeEnvironment: writeMonthlyComputeEnvironment,
+            order: 1,
+          },
+        ],
+      },
+    );
 
     // Create Docker image asset (shared by both job definitions)
     const containerImage = ecs.ContainerImage.fromAsset(
       path.join(__dirname, "../../"),
       {
-        file: "cdk-hls-batch/Dockerfile",
+        file: "infrastructure/Dockerfile",
       },
     );
 
@@ -157,8 +194,8 @@ export class HlsBatchStack extends cdk.Stack {
           "CacheDailyContainer",
           {
             image: containerImage,
-            cpu: 2,
-            memory: cdk.Size.mebibytes(8192),
+            cpu: 1,
+            memory: cdk.Size.mebibytes(1024),
             jobRole,
             executionRole: jobExecutionRole,
             logging: ecs.LogDriver.awsLogs({
@@ -167,6 +204,8 @@ export class HlsBatchStack extends cdk.Stack {
             }),
             environment: {
               AWS_DEFAULT_REGION: this.region,
+              EARTHDATA_USERNAME: process.env.EARTHDATA_USERNAME || "",
+              EARTHDATA_PASSWORD: process.env.EARTHDATA_PASSWORD || "",
             },
             command: [
               "Ref::jobType",
@@ -189,7 +228,7 @@ export class HlsBatchStack extends cdk.Stack {
           skipExisting: "true",
         },
         retryAttempts: 3,
-        timeout: cdk.Duration.minutes(30),
+        timeout: cdk.Duration.minutes(15),
       },
     );
 
@@ -204,8 +243,8 @@ export class HlsBatchStack extends cdk.Stack {
           "WriteMonthlyContainer",
           {
             image: containerImage,
-            cpu: 4,
-            memory: cdk.Size.mebibytes(16384),
+            cpu: 8,
+            memory: cdk.Size.mebibytes(65536),
             jobRole,
             executionRole: jobExecutionRole,
             logging: ecs.LogDriver.awsLogs({
@@ -214,6 +253,8 @@ export class HlsBatchStack extends cdk.Stack {
             }),
             environment: {
               AWS_DEFAULT_REGION: this.region,
+              EARTHDATA_USERNAME: process.env.EARTHDATA_USERNAME || "",
+              EARTHDATA_PASSWORD: process.env.EARTHDATA_PASSWORD || "",
             },
             command: [
               "Ref::jobType",
@@ -251,9 +292,14 @@ export class HlsBatchStack extends cdk.Stack {
       description: "S3 bucket ARN for storing HLS parquet data",
     });
 
-    new cdk.CfnOutput(this, "JobQueueArn", {
-      value: this.jobQueue.jobQueueArn,
-      description: "AWS Batch job queue ARN",
+    new cdk.CfnOutput(this, "CacheDailyJobQueueArn", {
+      value: this.cacheDailyJobQueue.jobQueueArn,
+      description: "AWS Batch job queue ARN for cache-daily jobs",
+    });
+
+    new cdk.CfnOutput(this, "WriteMonthlyJobQueueArn", {
+      value: this.writeMonthlyJobQueue.jobQueueArn,
+      description: "AWS Batch job queue ARN for write-monthly jobs",
     });
 
     new cdk.CfnOutput(this, "CacheDailyJobDefinitionArn", {
@@ -271,7 +317,7 @@ export class HlsBatchStack extends cdk.Stack {
       value: [
         "aws batch submit-job",
         '--job-name "hls-cache-daily-$(date +%Y%m%d-%H%M%S)"',
-        `--job-queue ${this.jobQueue.jobQueueName}`,
+        `--job-queue ${this.cacheDailyJobQueue.jobQueueName}`,
         `--job-definition ${this.cacheDailyJobDefinition.jobDefinitionName}`,
         `--parameters 'collection=HLSL30,date=2024-01-15,dest=s3://${this.bucket.bucketName}/data'`,
       ].join(" \\\n  "),
@@ -282,7 +328,7 @@ export class HlsBatchStack extends cdk.Stack {
       value: [
         "aws batch submit-job",
         '--job-name "hls-write-monthly-$(date +%Y%m%d-%H%M%S)"',
-        `--job-queue ${this.jobQueue.jobQueueName}`,
+        `--job-queue ${this.writeMonthlyJobQueue.jobQueueName}`,
         `--job-definition ${this.writeMonthlyJobDefinition.jobDefinitionName}`,
         `--parameters 'collection=HLSL30,yearMonth=2024-01-01,dest=s3://${this.bucket.bucketName}/data'`,
       ].join(" \\\n  "),

@@ -7,6 +7,7 @@ from urllib.parse import ParseResult
 
 import obstore as obs
 import tqdm.asyncio
+from obstore.auth.earthdata import NasaEarthdataAsyncCredentialProvider
 from obstore.store import from_url
 
 
@@ -27,11 +28,24 @@ async def fetch_stac_items(
         return [], []
 
     # Group by netloc to create stores efficiently
+    # Keep track of credential providers so we can close them
     stores_by_netloc = {}
+    credential_providers = []
+
     for link in stac_links:
         netloc = link.netloc
         if netloc not in stores_by_netloc:
-            stores_by_netloc[netloc] = from_url(f"{link.scheme}://{netloc}")
+            store_kwargs = {}
+            if link.scheme == "s3":
+                cp = NasaEarthdataAsyncCredentialProvider(
+                    credentials_url="https://data.lpdaac.earthdatacloud.nasa.gov/s3credentials"
+                )
+                credential_providers.append(cp)
+                store_kwargs["credential_provider"] = cp
+
+            stores_by_netloc[netloc] = from_url(
+                f"{link.scheme}://{netloc}", **store_kwargs
+            )
 
     semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -50,24 +64,29 @@ async def fetch_stac_items(
                 print(f"Failed to fetch {link.geturl()}: {e}")
                 return None, link
 
-    # Execute fetches concurrently
-    tasks = [fetch_with_error_handling(link) for link in stac_links]
+    try:
+        # Execute fetches concurrently
+        tasks = [fetch_with_error_handling(link) for link in stac_links]
 
-    if show_progress:
-        results = await tqdm.asyncio.tqdm.gather(
-            *tasks, desc="Fetching STAC items", total=len(tasks)
-        )
-    else:
-        results = await asyncio.gather(*tasks)
+        if show_progress:
+            results = await tqdm.asyncio.tqdm.gather(
+                *tasks, desc="Fetching STAC items", total=len(tasks)
+            )
+        else:
+            results = await asyncio.gather(*tasks)
 
-    # Separate successful items from failed links
-    successful_items = []
-    failed_links = []
+        # Separate successful items from failed links
+        successful_items = []
+        failed_links = []
 
-    for item, failed_link in results:
-        if item is not None:
-            successful_items.append(item)
-        if failed_link is not None:
-            failed_links.append(failed_link)
+        for item, failed_link in results:
+            if item is not None:
+                successful_items.append(item)
+            if failed_link is not None:
+                failed_links.append(failed_link)
 
-    return successful_items, failed_links
+        return successful_items, failed_links
+    finally:
+        # Close all credential providers
+        for cp in credential_providers:
+            await cp.close()

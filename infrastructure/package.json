@@ -5,13 +5,18 @@
   "main": "lib/app.js",
   "scripts": {
     "build": "tsc",
-    "watch": "tsc -w",
-    "test": "jest",
     "cdk": "cdk",
     "deploy": "npm run build && cdk deploy",
     "synth": "npm run build && cdk synth"
   },
-  "keywords": ["aws", "cdk", "batch", "hls", "stac", "parquet"],
+  "keywords": [
+    "aws",
+    "cdk",
+    "batch",
+    "hls",
+    "stac",
+    "parquet"
+  ],
   "author": "hrodmn",
   "license": "MIT",
   "devDependencies": {
@@ -19,7 +24,8 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "aws-cdk-lib": "^2.150.0",
+    "aws-cdk-lib": "^2.223.0",
     "constructs": "^10.0.0"
   }
 }
+

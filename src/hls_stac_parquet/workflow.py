@@ -30,7 +30,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
 )
 
-logging.getLogger("httpx").setLevel("WARN")
+# logging.getLogger("httpx").setLevel("WARN")
 logging.getLogger("stac_io").setLevel("WARN")
 
 logger = logging.getLogger("hls-stac-geoparquet-archive")
@@ -103,9 +103,9 @@ async def cache_daily_stac_json_links(
     store = from_url(dest)
     out_path = LINK_PATH_FORMAT.format(
         collection_id=collection.collection_id,
-        year=str(date.year),
-        month=str(date.month),
-        day=str(date.day),
+        year=date.year,
+        month=date.month,
+        day=date.day,
     )
 
     if skip_existing:
@@ -122,6 +122,9 @@ async def cache_daily_stac_json_links(
         temporal=(start_datetime.isoformat(), end_datetime.isoformat()),
         protocol=protocol,
     )
+
+    if not stac_links:
+        raise ValueError("CMR query returned no STAC links:", collection, date)
 
     await write_stac_links(
         stac_links=stac_links,
@@ -187,13 +190,15 @@ async def write_monthly_stac_geoparquet(
         store,
         prefix=LINK_PATH_PREFIX.format(
             collection_id=collection.collection_id,
-            year=str(year),
-            month=str(month),
+            year=year,
+            month=month,
         ),
     )
 
+    actual_links = []
     async for list_result in stream:
         for result in list_result:
+            actual_links.append(result["path"])
             resp = await obstore.get_async(store, result["path"])
             buffer = await resp.bytes_async()
             links = json.loads(bytes(buffer).decode())
@@ -202,20 +207,22 @@ async def write_monthly_stac_geoparquet(
     logger.info(f"{collection.collection_id}: found {len(stac_json_links)} links")
 
     if require_complete_links:
-        last_date_in_month = datetime(year=year, month=(month + 1), day=1) - timedelta(
-            days=1
-        )
+        next_month = month + 1 if month < 12 else 1
+        next_year = year if month < 12 else year + 1
+        last_date_in_month = datetime(
+            year=next_year, month=next_month, day=1
+        ) - timedelta(days=1)
         expected_links = [
             LINK_PATH_FORMAT.format(
                 collection_id=collection.collection_id,
-                year=str(year),
-                month=str(month),
-                day=str(day),
+                year=year,
+                month=month,
+                day=day,
             )
             for day in range(1, last_date_in_month.day + 1)
         ]
 
-        if not set(expected_links) == set(stac_json_links):
+        if not set(expected_links) == set(actual_links):
             raise ValueError(
                 f"expected these links: \n{'\n'.join(expected_links)}\n",
                 f"found these links:\n{'\n'.join(stac_json_links)}",
@@ -233,9 +240,14 @@ async def write_monthly_stac_geoparquet(
     for item in stac_items:
         item["collection"] = collection.collection_id
 
+    # Sort by datetime for better query performance and compression
+    stac_items.sort(key=lambda item: item.get("properties", {}).get("datetime"))
+
     _ = await rustac.write(
         out_path,
         stac_items,
         parquet_compression="zstd(6)",
         store=store,
     )
+
+    logger.info(f"successfully wrote {len(stac_items)} items to {out_path}")

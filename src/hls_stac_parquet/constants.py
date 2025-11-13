@@ -2,11 +2,9 @@ from enum import StrEnum
 
 CLIENT_ID = "nasa-maap-hls-stac-geoparquet; contact henry@developmentseed.org"
 
-LINK_PATH_PREFIX = "links/{collection_id}/{year}/{month}"
-LINK_PATH_FORMAT = LINK_PATH_PREFIX + "/{year}-{month}-{day}.json"
-PARQUET_PATH_FORMAT = (
-    "{version}/{collection_id}/{year}/{month}/{collection_id}-{year}-{month}.parquet"
-)
+LINK_PATH_PREFIX = "links/{collection_id}/{year}/{month:02d}"
+LINK_PATH_FORMAT = LINK_PATH_PREFIX + "/{year}-{month:02d}-{day:02d}.json"
+PARQUET_PATH_FORMAT = "{version}/{collection_id}/year={year}/month={month}/{collection_id}-{year}-{month}.parquet"
 
 
 class HlsCollection(StrEnum):

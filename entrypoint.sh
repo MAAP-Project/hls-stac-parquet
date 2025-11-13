@@ -42,7 +42,7 @@ case "$JOB_TYPE" in
         fi
 
         # Build command
-        CMD="uv run hls-stac-parquet cache-daily-stac-json-links $COLLECTION $DATE $DEST"
+        CMD="/app/.venv/bin/hls-stac-parquet cache-daily-stac-json-links $COLLECTION $DATE $DEST"
 
         # Add optional parameters
         if [ -n "$BOUNDING_BOX" ] && [ "$BOUNDING_BOX" != "none" ]; then
@@ -93,7 +93,7 @@ case "$JOB_TYPE" in
         fi
 
         # Build command
-        CMD="uv run hls-stac-parquet write-monthly-stac-geoparquet $COLLECTION $YEAR_MONTH $DEST"
+        CMD="/app/.venv/bin/hls-stac-parquet write-monthly-stac-geoparquet $COLLECTION $YEAR_MONTH $DEST"
 
         # Add optional parameters
         if [ -n "$VERSION" ] && [ "$VERSION" != "none" ]; then

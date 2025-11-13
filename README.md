@@ -1,135 +1,6 @@
-# HLS STAC Cache
+# HLS STAC Parquet
 
-A Python package for querying NASA's CMR API and caching HLS (Harmonized Landsat Sentinel-2) STAC items as GeoParquet files using `rustac`.
-
-## Installation
-
-```bash
-# Using pip
-pip install git+https://github.com/MAAP-project/hls-stac-parquet
-```
-
-## Command Line Interface
-
-The package provides a command-line interface for generating daily HLS STAC parquet files:
-
-### Generate Daily Files
-
-```bash
-# Generate files for all days in May 2024
-hls-stac-parquet generate-daily 202405 /path/to/output
-
-# Generate files for specific date range (May 10-20, 2024)
-hls-stac-parquet generate-daily 20240510 20240520 /path/to/output
-
-# Generate file for single day
-hls-stac-parquet generate-daily 20240515 /path/to/output
-
-# Generate files in parallel mode (faster)
-hls-stac-parquet generate-daily 202405 /path/to/output --parallel
-
-# Customize concurrency settings
-hls-stac-parquet generate-daily 202405 /path/to/output --parallel \
-  --max-concurrent-days 5 --max-concurrent-per-day 100
-```
-
-### Repartition Daily Files
-
-Repartition daily parquet files by year-month for better query performance:
-
-```bash
-# Repartition daily files into year-month partitions
-hls-stac-parquet repartition /path/to/daily/files /path/to/partitioned/output
-
-# Overwrite existing partitioned data
-hls-stac-parquet repartition /path/to/daily/files /path/to/partitioned/output --overwrite
-```
-
-### Date Format Options
-
-- `YYYYMM` - All days in the month (e.g., `202405` for May 2024)
-- `YYYYMMDD` - Single day (e.g., `20240515` for May 15, 2024)
-- Two `YYYYMMDD` - Date range (e.g., `20240510 20240520` for May 10-20, 2024)
-
-### CLI Options
-
-- `--parallel` - Process days in parallel (faster but more resource intensive)
-- `--max-concurrent-days N` - Maximum number of days to process concurrently (default: 3)
-- `--max-concurrent-per-day N` - Maximum concurrent requests per day (default: 50)
-- `--no-skip-existing` - Process all days even if output files already exist
-- `--no-progress` - Hide progress bars
-
-## Python API
-
-The package provides both a command-line interface and a Python API for programmatic usage.
-
-### High-Level API
-
-```python
-import hls_stac_parquet
-
-# Process a single day
-results = hls_stac_parquet.process_date_range(
-    start_date="2024-05-15",
-    output_dir="./output"
-)
-
-# Process a date range in parallel
-results = hls_stac_parquet.process_date_range(
-    start_date="20240510",
-    end_date="20240515",
-    output_dir="./output",
-    parallel=True
-)
-
-# Process an entire month
-results = hls_stac_parquet.process_month(
-    year_month="202405",
-    output_dir="./output",
-    parallel=True
-)
-
-# Get summary statistics
-stats = hls_stac_parquet.get_summary_stats(results)
-print(f"Success rate: {stats['success_rate']:.1%}")
-
-# Repartition files by year-month
-hls_stac_parquet.repartition_by_year_month(
-    source_dir="./daily_files",
-    destination_dir="./partitioned_files"
-)
-```
-
-### Low-Level API
-
-```python
-"""Example usage of the low-level HLS STAC to Parquet conversion functions."""
-import asyncio
-
-from obstore.store import LocalStore
-
-from hls_stac_parquet import hls_to_stac_geoparquet
-
-
-async def main():
-    stats = await hls_to_stac_geoparquet(
-        output_path="hls_example.parquet",
-        bounding_box=(-100, 40, -90, 50),
-        temporal=("2024-06-01T00:00:00Z", "2024-06-02T00:00:00Z"),
-        max_concurrent=50,
-        show_progress=True,
-        store=LocalStore(prefix="/tmp"),
-    )
-
-    print("Conversion completed!")
-    print(f"Stats: {stats}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-For detailed API documentation and examples, see [API_USAGE.md](API_USAGE.md).
+Query NASA's CMR for HLS (Harmonized Landsat Sentinel-2) satellite data and cache STAC items as GeoParquet files. Supports both local processing and AWS Batch deployment.
 
 ## Development
 
@@ -139,6 +10,136 @@ cd hls-stac-parquet
 
 uv sync
 ```
+
+## CLI Usage
+
+Two-step workflow for efficient data processing:
+
+### 1. Cache Daily STAC Links
+
+Query CMR and cache STAC JSON links for a specific day and collection:
+
+```bash
+uv run hls-stac-parquet cache-daily HLSL30 2024-01-15 s3://bucket/data
+
+# Optional: filter by bounding box (west, south, east, north)
+uv run hls-stac-parquet cache-daily HLSS30 2024-01-15 s3://bucket/data \
+  --bounding-box -100,40,-90,50
+```
+
+### 2. Write Monthly GeoParquet
+
+Read cached links and write monthly GeoParquet files:
+
+```bash
+uv run hls-stac-parquet write-monthly HLSL30 2024-01 s3://bucket/data
+
+# Optional: version output and control validation
+uv run hls-stac-parquet write-monthly HLSS30 2024-01 s3://bucket/data \
+  --version v0.1.0 \
+  --no-require-complete-links
+```
+
+### Collections
+
+- `HLSL30` - [HLS Landsat Operational Land Imager Surface Reflectance and TOA Brightness Daily Global 30m v2.0](https://search.earthdata.nasa.gov/search/granules/collection-details?p=C2021957657-LPCLOUD&pg[0][v]=f&pg[0][gsk]=-start_date&q=hls)
+- `HLSS30` - [HLS Sentinel-2 Multi-spectral Instrument Surface Reflectance Daily Global 30m v2.0](https://search.earthdata.nasa.gov/search/granules/collection-details?p=C2021957295-LPCLOUD&pg[0][v]=f&pg[0][gsk]=-start_date&q=hls)
+
+### Output Structure
+
+```
+s3://bucket/data/
+├── links/
+│   ├── HLSL30.v2.0/2024/01/2024-01-01.json
+│   ├── HLSL30.v2.0/2024/01/2024-01-02.json
+    └── ...
+└── v0.1/
+    └── HLSL30.v2.0/year=2024/month=01/HLSL30_2.0-2025-1.parquet
+```
+
+## AWS Batch Deployment
+
+Deploy scalable processing infrastructure with AWS CDK:
+
+### Architecture
+
+- **Cache Daily Jobs**: Small instances (1 vCPU, 1 GB) for lightweight CMR queries
+- **Write Monthly Jobs**: Memory-optimized instances (8 vCPU, 64 GB) for writing monly STAC GeoParquet files
+- **Storage**: S3 bucket with VPC endpoint for efficient data transfer
+- **Logging**: CloudWatch logs at `/aws/batch/hls-stac-parquet`
+
+### Deployment
+
+```bash
+cd infrastructure
+npm install && npm run build
+npm run deploy
+```
+
+### Running Jobs
+
+Submit individual jobs:
+
+```bash
+aws batch submit-job \
+  --job-name "cache-daily-$(date +%Y%m%d-%H%M%S)" \
+  --job-queue HlsBatchStack-HlsCacheDailyJobQueue \
+  --job-definition hls-cache-daily-stac-links \
+  --parameters collection=HLSL30,date=2024-01-15,dest=s3://YOUR-BUCKET/data
+```
+
+Submit jobs for entire months:
+
+The `submit-job.sh` script automatically queries CloudFormation for job queues and definitions. Use `--dry-run` to preview jobs without submitting.
+
+```bash
+# Cache daily STAC json links
+
+# for a single date + collection
+./infrastructure/submit-job.sh \
+    --type cache-daily \
+    --collection "HLSL30" \
+    --date "2024-01-01"
+
+# Cache all days in January 2024 for both collections
+for collection in HLSL30 HLSS30; do
+  for month in 01 02 03 04 05 06 07 08 09 10 11 12; do
+      ./infrastructure/submit-job.sh \
+        --type cache-daily \
+        --collection "$collection" \
+        --year-month "2023-${month}"
+    done
+  done
+
+# Write monthly GeoParquet files
+
+# for a specific collection + month
+./infrastructure/submit-job.sh \
+    --type write-monthly \
+    --collection "HLSL30" \
+    --year-month "2024-01" \
+    --version "0.1.dev11+g7e7b53cb2.d20251112"
+
+# for all collections + months for a year
+for collection in HLSL30 HLSS30; do
+  for month in 01 02 03 04 05 06 07 08 09 10 11 12; do
+      ./infrastructure/submit-job.sh \
+        --type write-monthly \
+        --collection "$collection" \
+        --year-month "2024-${month}" \
+        --version "0.1.dev11+g7e7b53cb2.d20251112"
+    done
+  done
+```
+
+
+### Cleanup
+
+```bash
+cd infrastructure
+npx cdk destroy
+```
+
 
 ## Acknowledgments
 
