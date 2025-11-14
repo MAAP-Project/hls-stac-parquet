@@ -38,6 +38,7 @@ version-file = "src/hls_stac_parquet/_version.py"
 
 [dependency-groups]
 dev = [
+    "boto3>=1.40.73",
     "hatch-vcs>=0.5.0",
     "ipython>=9.7.0",
     "pre-commit>=4.4.0",

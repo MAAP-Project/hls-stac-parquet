@@ -12,3 +12,4 @@ _version.py
 
 # npm
 cdk-hls-batch/node_modules/
+infrastructure/cdk.out/

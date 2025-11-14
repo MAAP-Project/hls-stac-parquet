@@ -123,9 +123,6 @@ async def cache_daily_stac_json_links(
         protocol=protocol,
     )
 
-    if not stac_links:
-        raise ValueError("CMR query returned no STAC links:", collection, date)
-
     await write_stac_links(
         stac_links=stac_links,
         store=store,
@@ -212,6 +209,16 @@ async def write_monthly_stac_geoparquet(
         last_date_in_month = datetime(
             year=next_year, month=next_month, day=1
         ) - timedelta(days=1)
+
+        # Handle partial first month if this is the origin month
+        origin_date = collection.origin_date
+        first_day = 1
+        if year == origin_date.year and month == origin_date.month:
+            first_day = origin_date.day
+            logger.info(
+                f"Origin month detected: expecting links starting from day {first_day}"
+            )
+
         expected_links = [
             LINK_PATH_FORMAT.format(
                 collection_id=collection.collection_id,
@@ -219,7 +226,7 @@ async def write_monthly_stac_geoparquet(
                 month=month,
                 day=day,
             )
-            for day in range(1, last_date_in_month.day + 1)
+            for day in range(first_day, last_date_in_month.day + 1)
         ]
 
         if not set(expected_links) == set(actual_links):

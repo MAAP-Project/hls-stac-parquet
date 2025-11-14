@@ -57,16 +57,16 @@ s3://bucket/data/
     └── HLSL30.v2.0/year=2024/month=01/HLSL30_2.0-2025-1.parquet
 ```
 
-## AWS Batch Deployment
+## AWS Deployment
 
 Deploy scalable processing infrastructure with AWS CDK:
 
 ### Architecture
 
-- **Cache Daily Jobs**: Small instances (1 vCPU, 1 GB) for lightweight CMR queries
-- **Write Monthly Jobs**: Memory-optimized instances (8 vCPU, 64 GB) for writing monly STAC GeoParquet files
+- **Cache Daily Jobs**: SNS + SQS + Lambda for lightweight CMR queries (1024 MB memory, 300s timeout, max 4 concurrent)
+- **Write Monthly Jobs**: AWS Batch with memory-optimized instances (8 vCPU, 64 GB) for writing monthly STAC GeoParquet files
 - **Storage**: S3 bucket with VPC endpoint for efficient data transfer
-- **Logging**: CloudWatch logs at `/aws/batch/hls-stac-parquet`
+- **Logging**: CloudWatch logs at `/aws/batch/hls-stac-parquet` (Batch) and `/aws/lambda/HlsBatchStack-Function*` (Lambda)
 
 ### Deployment
 
@@ -78,40 +78,114 @@ npm run deploy
 
 ### Running Jobs
 
-Submit individual jobs:
+#### Cache Daily STAC Links (SNS + Lambda)
+
+Publish messages to SNS to trigger the Lambda function. Get the SNS topic ARN from CloudFormation outputs:
 
 ```bash
-aws batch submit-job \
-  --job-name "cache-daily-$(date +%Y%m%d-%H%M%S)" \
-  --job-queue HlsBatchStack-HlsCacheDailyJobQueue \
-  --job-definition hls-cache-daily-stac-links \
-  --parameters collection=HLSL30,date=2024-01-15,dest=s3://YOUR-BUCKET/data
+# Get the SNS topic ARN
+SNS_TOPIC_ARN=$(aws cloudformation describe-stacks \
+  --stack-name HlsBatchStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`TopicArn`].OutputValue' \
+  --output text)
+
+# Cache for a single date
+aws sns publish \
+  --topic-arn "$SNS_TOPIC_ARN" \
+  --message '{
+    "collection": "HLSL30",
+    "date": "2024-01-15"
+  }'
+
+# Cache with optional parameters
+aws sns publish \
+  --topic-arn "$SNS_TOPIC_ARN" \
+  --message '{
+    "collection": "HLSS30",
+    "date": "2024-01-15",
+    "bounding_box": [-100, 40, -90, 50],
+    "protocol": "s3",
+    "skip_existing": true
+  }'
+
+# Cache all days in a month (bash script example)
+for day in {01..31}; do
+  aws sns publish \
+    --topic-arn "$SNS_TOPIC_ARN" \
+    --message "{\"collection\": \"HLSL30\", \"date\": \"2024-01-${day}\"}"
+done
 ```
 
-Submit jobs for entire months:
+#### Batch Publishing for Date Ranges**
 
-The `submit-job.sh` script automatically queries CloudFormation for job queues and definitions. Use `--dry-run` to preview jobs without submitting.
+Use the batch publisher Lambda function to automatically publish messages for all dates in a range:
+
+**Batch Publisher Parameters:**
+- `collection`: Required. Either "HLSL30" or "HLSS30"
+- `start_date`: Optional. ISO format date (YYYY-MM-DD). Defaults to collection origin date (HLSL30: 2013-04-11, HLSS30: 2015-11-28)
+- `end_date`: Optional. ISO format date (YYYY-MM-DD). Defaults to yesterday
+- `dest`: Optional. S3 path like "s3://bucket/path" (defaults to stack's S3 bucket)
+- `bounding_box`: Optional. Array of [min_lon, min_lat, max_lon, max_lat]
+- `protocol`: Optional. Either "s3" or "https" (default: "s3")
+- `skip_existing`: Optional. Boolean (default: true)
+
+**Message Format:**
+- `collection`: Required. Either "HLSL30" or "HLSS30"
+- `date`: Required. ISO format date (YYYY-MM-DD)
+- `dest`: Optional. S3 path like "s3://bucket/path" (defaults to stack's S3 bucket)
+- `bounding_box`: Optional. Array of [min_lon, min_lat, max_lon, max_lat]
+- `protocol`: Optional. Either "s3" or "https" (default: "s3")
+- `skip_existing`: Optional. Boolean (default: true)
 
 ```bash
-# Cache daily STAC json links
+# Get the batch publisher function name
+BATCH_PUBLISHER_FUNCTION=$(aws cloudformation describe-stacks \
+  --stack-name HlsBatchStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`BatchPublisherFunctionName`].OutputValue' \
+  --output text)
 
-# for a single date + collection
-./infrastructure/submit-job.sh \
-    --type cache-daily \
-    --collection "HLSL30" \
-    --date "2024-01-01"
+# Publish for all dates in a specific month
+payload=`echo '{ "collection": "HLSL30", "start_date": "2025-10-01", "end_date": "2025-10-31" }' | openssl base64`
+aws lambda invoke \
+  --function-name "$BATCH_PUBLISHER_FUNCTION" \
+  --payload "$payload" \
+  /tmp/response.json
 
-# Cache all days in January 2024 for both collections
-for collection in HLSL30 HLSS30; do
-  for month in 01 02 03 04 05 06 07 08 09 10 11 12; do
-      ./infrastructure/submit-job.sh \
-        --type cache-daily \
-        --collection "$collection" \
-        --year-month "2023-${month}"
-    done
-  done
+# Publish all available data from collection origin to yesterday
+# (start_date defaults to collection origin, end_date defaults to yesterday)
+payload=`echo '{ "collection": "HLSS30", "end_date": "2025-10-31" }' | openssl base64`
+aws lambda invoke \
+  --function-name "$BATCH_PUBLISHER_FUNCTION" \
+  --payload "${payload}" \
+  response.json
 
-# Write monthly GeoParquet files
+# view the logs
+BATCH_FUNCTION_NAME=$(aws cloudformation describe-stacks \
+  --stack-name HlsBatchStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`BatchPublisherFunctionName`].OutputValue' \
+  --output text)
+
+# View recent logs (last 10 minutes)
+aws logs tail "/aws/lambda/$BATCH_FUNCTION_NAME" --follow
+
+# View the response
+cat response.json
+```
+
+#### Write Monthly GeoParquet Files (AWS Batch)
+
+Submit Batch jobs directly or use the `submit-job.sh` helper script:
+
+```bash
+# Submit individual job
+aws batch submit-job \
+  --job-name "write-monthly-$(date +%Y%m%d-%H%M%S)" \
+  --job-queue HlsBatchStack-HlsWriteMonthlyJobQueue \
+  --job-definition hls-write-monthly-stac-parquet \
+  --parameters collection=HLSL30,yearMonth=2024-01,version=v0.1.0
+
+# Submit jobs using helper script (queries CloudFormation automatically)
+# Use --dry-run to preview jobs without submitting
 
 # for a specific collection + month
 ./infrastructure/submit-job.sh \
@@ -132,6 +206,66 @@ for collection in HLSL30 HLSS30; do
   done
 ```
 
+
+### Monitoring
+
+#### Lambda Function (Cache Daily)
+
+View recent logs:
+
+```bash
+# Get the Lambda function name
+LAMBDA_FUNCTION_NAME=$(aws cloudformation describe-stacks \
+  --stack-name HlsBatchStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`LambdaFunctionName`].OutputValue' \
+  --output text)
+
+# View recent logs (last 10 minutes)
+aws logs tail "/aws/lambda/${LAMBDA_FUNCTION_NAME}" --follow
+
+# Check for errors in the last hour
+aws logs filter-events \
+  --log-group-name "/aws/lambda/$LAMBDA_FUNCTION_NAME" \
+  --filter-pattern "ERROR" \
+  --start-time $(date -d '1 hour ago' +%s)000
+```
+
+Check SQS queue depth:
+
+```bash
+# Get queue URLs
+QUEUE_URL=$(aws cloudformation describe-stacks \
+  --stack-name HlsBatchStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`QueueUrl`].OutputValue' \
+  --output text)
+
+DLQ_URL=$(aws cloudformation describe-stacks \
+  --stack-name HlsBatchStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`DeadLetterQueueUrl`].OutputValue' \
+  --output text)
+
+# Check messages in main queue
+aws sqs get-queue-attributes \
+  --queue-url "$QUEUE_URL" \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible
+
+# Check messages in dead letter queue (failed messages)
+aws sqs get-queue-attributes \
+  --queue-url "$DLQ_URL" \
+  --attribute-names ApproximateNumberOfMessages
+```
+
+#### Batch Jobs (Write Monthly)
+
+```bash
+# List recent jobs
+aws batch list-jobs \
+  --job-queue HlsBatchStack-HlsWriteMonthlyJobQueue \
+  --job-status RUNNING
+
+# View job logs
+aws logs tail /aws/batch/hls-stac-parquet --follow
+```
 
 ### Cleanup
 

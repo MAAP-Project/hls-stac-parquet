@@ -1,14 +1,27 @@
-import * as cdk from "aws-cdk-lib";
-import * as batch from "aws-cdk-lib/aws-batch";
-import * as ec2 from "aws-cdk-lib/aws-ec2";
-import * as ecs from "aws-cdk-lib/aws-ecs";
-import * as iam from "aws-cdk-lib/aws-iam";
-import * as logs from "aws-cdk-lib/aws-logs";
-import * as s3 from "aws-cdk-lib/aws-s3";
+import {
+  CfnOutput,
+  Duration,
+  RemovalPolicy,
+  Size,
+  StackProps,
+  Stack,
+  Tags,
+  aws_batch as batch,
+  aws_ec2 as ec2,
+  aws_ecs as ecs,
+  aws_iam as iam,
+  aws_lambda as lambda,
+  aws_lambda_event_sources as lambdaEventSources,
+  aws_logs as logs,
+  aws_s3 as s3,
+  aws_sns as sns,
+  aws_sns_subscriptions as snsSubscriptions,
+  aws_sqs as sqs,
+} from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as path from "path";
 
-export interface HlsBatchStackProps extends cdk.StackProps {
+export interface HlsBatchStackProps extends StackProps {
   /**
    * VPC CIDR block for the batch environment
    * @default '10.0.0.0/16'
@@ -34,11 +47,14 @@ export interface HlsBatchStackProps extends cdk.StackProps {
   bucketName?: string;
 }
 
-export class HlsBatchStack extends cdk.Stack {
+export class HlsBatchStack extends Stack {
   public readonly bucket: s3.Bucket;
-  public readonly cacheDailyJobQueue: batch.JobQueue;
+  public readonly lambdaQueue: sqs.Queue;
+  public readonly deadLetterQueue: sqs.Queue;
+  public readonly snsTopic: sns.Topic;
+  public readonly lambdaFunction: lambda.Function;
+  public readonly batchPublisherFunction: lambda.Function;
   public readonly writeMonthlyJobQueue: batch.JobQueue;
-  public readonly cacheDailyJobDefinition: batch.EcsJobDefinition;
   public readonly writeMonthlyJobDefinition: batch.EcsJobDefinition;
 
   constructor(scope: Construct, id: string, props?: HlsBatchStackProps) {
@@ -73,14 +89,14 @@ export class HlsBatchStack extends cdk.Stack {
       bucketName: props?.bucketName,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: RemovalPolicy.RETAIN,
     });
 
     // Create CloudWatch log group
     const logGroup = new logs.LogGroup(this, "HlsBatchLogGroup", {
       logGroupName: "/aws/batch/hls-stac-parquet",
       retention: logs.RetentionDays.ONE_MONTH,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      removalPolicy: RemovalPolicy.DESTROY,
     });
 
     // Create IAM role for Batch job execution
@@ -110,23 +126,86 @@ export class HlsBatchStack extends cdk.Stack {
       }),
     );
 
-    // Create Batch compute environment for cache-daily jobs (lightweight I/O tasks)
-    const cacheDailyComputeEnvironment =
-      new batch.ManagedEc2EcsComputeEnvironment(
-        this,
-        "HlsCacheDailyComputeEnv",
-        {
-          vpc,
-          vpcSubnets: {
-            subnetType: ec2.SubnetType.PUBLIC,
-          },
-          maxvCpus: props?.maxvCpus || 8,
-          // Use smaller, general-purpose instances for API calls and JSON writing
-          useOptimalInstanceClasses: true,
-          allocationStrategy: batch.AllocationStrategy.BEST_FIT_PROGRESSIVE,
-          spot: false,
+    // Create dead letter queue
+    this.deadLetterQueue = new sqs.Queue(this, "DeadLetterQueue", {
+      retentionPeriod: Duration.days(14),
+    });
+
+    // Create main queue
+    this.lambdaQueue = new sqs.Queue(this, "Queue", {
+      visibilityTimeout: Duration.seconds(300),
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+      deadLetterQueue: {
+        maxReceiveCount: 2,
+        queue: this.deadLetterQueue,
+      },
+    });
+
+    // Create SNS topic
+    this.snsTopic = new sns.Topic(this, "Topic", {
+      displayName: `${id}-StacLoaderTopic`,
+    });
+
+    // Subscribe the queue to the topic
+    this.snsTopic.addSubscription(
+      new snsSubscriptions.SqsSubscription(this.lambdaQueue),
+    );
+
+    // Create the lambda function
+    const maxConcurrency = 4;
+    const lambdaRuntime = lambda.Runtime.PYTHON_3_13;
+    this.lambdaFunction = new lambda.Function(this, "Function", {
+      runtime: lambdaRuntime,
+      handler: "hls_stac_parquet.handler.handler",
+      code: lambda.Code.fromDockerBuild(path.join(__dirname, "../../"), {
+        file: "infrastructure/Dockerfile.lambda",
+        platform: "linux/amd64",
+        buildArgs: {
+          PYTHON_VERSION: lambdaRuntime.toString().replace("python", ""),
         },
-      );
+      }),
+      memorySize: 1024,
+      timeout: Duration.seconds(300),
+      reservedConcurrentExecutions: maxConcurrency,
+      logRetention: logs.RetentionDays.ONE_WEEK,
+      environment: {
+        BUCKET_NAME: this.bucket.bucketName,
+      },
+    });
+
+    // Grant Lambda function permissions to read/write to S3 bucket
+    this.bucket.grantReadWrite(this.lambdaFunction);
+
+    // Add SQS event source to the lambda
+    this.lambdaFunction.addEventSource(
+      new lambdaEventSources.SqsEventSource(this.lambdaQueue, {
+        batchSize: 20,
+        maxBatchingWindow: Duration.minutes(1),
+        maxConcurrency: maxConcurrency,
+        reportBatchItemFailures: true,
+      }),
+    );
+
+    // Create the batch publisher lambda function (lightweight, no custom dependencies)
+    this.batchPublisherFunction = new lambda.Function(
+      this,
+      "BatchPublisherFunction",
+      {
+        runtime: lambdaRuntime,
+        handler: "batch_publisher.handler",
+        code: lambda.Code.fromAsset(path.join(__dirname, "../lambda")),
+        memorySize: 512,
+        timeout: Duration.minutes(15),
+        logRetention: logs.RetentionDays.ONE_WEEK,
+        environment: {
+          TOPIC_ARN: this.snsTopic.topicArn,
+          BUCKET_NAME: this.bucket.bucketName,
+        },
+      },
+    );
+
+    // Grant batch publisher permission to publish to SNS topic
+    this.snsTopic.grantPublish(this.batchPublisherFunction);
 
     // Create Batch compute environment for write-monthly jobs (larger, memory-optimized)
     const writeMonthlyComputeEnvironment =
@@ -144,21 +223,6 @@ export class HlsBatchStack extends cdk.Stack {
           spot: false,
         },
       );
-
-    // Job queue for cache-daily jobs
-    this.cacheDailyJobQueue = new batch.JobQueue(
-      this,
-      "HlsCacheDailyJobQueue",
-      {
-        priority: 1,
-        computeEnvironments: [
-          {
-            computeEnvironment: cacheDailyComputeEnvironment,
-            order: 1,
-          },
-        ],
-      },
-    );
 
     // Job queue for write-monthly jobs
     this.writeMonthlyJobQueue = new batch.JobQueue(
@@ -179,56 +243,7 @@ export class HlsBatchStack extends cdk.Stack {
     const containerImage = ecs.ContainerImage.fromAsset(
       path.join(__dirname, "../../"),
       {
-        file: "infrastructure/Dockerfile",
-      },
-    );
-
-    // Job Definition 1: Cache Daily STAC JSON Links
-    this.cacheDailyJobDefinition = new batch.EcsJobDefinition(
-      this,
-      "CacheDailyJobDefinition",
-      {
-        jobDefinitionName: "hls-cache-daily-stac-links",
-        container: new batch.EcsEc2ContainerDefinition(
-          this,
-          "CacheDailyContainer",
-          {
-            image: containerImage,
-            cpu: 1,
-            memory: cdk.Size.mebibytes(1024),
-            jobRole,
-            executionRole: jobExecutionRole,
-            logging: ecs.LogDriver.awsLogs({
-              logGroup,
-              streamPrefix: "hls-cache-daily",
-            }),
-            environment: {
-              AWS_DEFAULT_REGION: this.region,
-              EARTHDATA_USERNAME: process.env.EARTHDATA_USERNAME || "",
-              EARTHDATA_PASSWORD: process.env.EARTHDATA_PASSWORD || "",
-            },
-            command: [
-              "Ref::jobType",
-              "Ref::collection",
-              "Ref::date",
-              "Ref::dest",
-              "Ref::boundingBox",
-              "Ref::protocol",
-              "Ref::skipExisting",
-            ],
-          },
-        ),
-        parameters: {
-          jobType: "cache-daily",
-          collection: "",
-          date: "",
-          dest: `s3://${this.bucket.bucketName}`,
-          boundingBox: "none",
-          protocol: "s3",
-          skipExisting: "true",
-        },
-        retryAttempts: 3,
-        timeout: cdk.Duration.minutes(15),
+        file: "infrastructure/Dockerfile.ecr",
       },
     );
 
@@ -244,7 +259,7 @@ export class HlsBatchStack extends cdk.Stack {
           {
             image: containerImage,
             cpu: 8,
-            memory: cdk.Size.mebibytes(65536),
+            memory: Size.mebibytes(65536),
             jobRole,
             executionRole: jobExecutionRole,
             logging: ecs.LogDriver.awsLogs({
@@ -277,54 +292,79 @@ export class HlsBatchStack extends cdk.Stack {
           skipExisting: "false",
         },
         retryAttempts: 3,
-        timeout: cdk.Duration.minutes(60),
+        timeout: Duration.minutes(60),
       },
     );
 
     // Create outputs
-    new cdk.CfnOutput(this, "BucketName", {
+    new CfnOutput(this, "BucketName", {
       value: this.bucket.bucketName,
       description: "S3 bucket name for storing HLS parquet data",
     });
 
-    new cdk.CfnOutput(this, "BucketArn", {
+    new CfnOutput(this, "BucketArn", {
       value: this.bucket.bucketArn,
       description: "S3 bucket ARN for storing HLS parquet data",
     });
 
-    new cdk.CfnOutput(this, "CacheDailyJobQueueArn", {
-      value: this.cacheDailyJobQueue.jobQueueArn,
-      description: "AWS Batch job queue ARN for cache-daily jobs",
+    new CfnOutput(this, "TopicArn", {
+      value: this.snsTopic.topicArn,
+      description: "SNS topic ARN for triggering cache-daily Lambda function",
     });
 
-    new cdk.CfnOutput(this, "WriteMonthlyJobQueueArn", {
+    new CfnOutput(this, "LambdaFunctionName", {
+      value: this.lambdaFunction.functionName,
+      description: "Lambda function name for cache-daily operations",
+    });
+
+    new CfnOutput(this, "BatchPublisherFunctionName", {
+      value: this.batchPublisherFunction.functionName,
+      description: "Lambda function name for batch publishing date ranges",
+    });
+
+    new CfnOutput(this, "BatchPublisherFunctionArn", {
+      value: this.batchPublisherFunction.functionArn,
+      description: "Lambda function ARN for batch publishing date ranges",
+    });
+
+    new CfnOutput(this, "QueueUrl", {
+      value: this.lambdaQueue.queueUrl,
+      description: "SQS queue URL for cache-daily Lambda function",
+    });
+
+    new CfnOutput(this, "DeadLetterQueueUrl", {
+      value: this.deadLetterQueue.queueUrl,
+      description: "Dead letter queue URL for failed cache-daily messages",
+    });
+
+    new CfnOutput(this, "WriteMonthlyJobQueueArn", {
       value: this.writeMonthlyJobQueue.jobQueueArn,
       description: "AWS Batch job queue ARN for write-monthly jobs",
     });
 
-    new cdk.CfnOutput(this, "CacheDailyJobDefinitionArn", {
-      value: this.cacheDailyJobDefinition.jobDefinitionArn,
-      description: "AWS Batch job definition ARN for caching daily STAC links",
-    });
-
-    new cdk.CfnOutput(this, "WriteMonthlyJobDefinitionArn", {
+    new CfnOutput(this, "WriteMonthlyJobDefinitionArn", {
       value: this.writeMonthlyJobDefinition.jobDefinitionArn,
       description: "AWS Batch job definition ARN for writing monthly parquet",
     });
 
     // Output example job submission commands
-    new cdk.CfnOutput(this, "ExampleCacheDailyCommand", {
+    new CfnOutput(this, "ExampleBatchPublisherCommand", {
       value: [
-        "aws batch submit-job",
-        '--job-name "hls-cache-daily-$(date +%Y%m%d-%H%M%S)"',
-        `--job-queue ${this.cacheDailyJobQueue.jobQueueName}`,
-        `--job-definition ${this.cacheDailyJobDefinition.jobDefinitionName}`,
-        `--parameters 'collection=HLSL30,date=2024-01-15,dest=s3://${this.bucket.bucketName}/data'`,
+        "aws lambda invoke",
+        `--function-name ${this.batchPublisherFunction.functionName}`,
+        "--payload '",
+        JSON.stringify({
+          collection: "HLSL30",
+          start_date: "2024-01-01",
+          end_date: "2024-01-31",
+        }),
+        "' response.json",
       ].join(" \\\n  "),
-      description: "Example command to submit a cache-daily batch job",
+      description:
+        "Example command to invoke batch publisher for a date range",
     });
 
-    new cdk.CfnOutput(this, "ExampleWriteMonthlyCommand", {
+    new CfnOutput(this, "ExampleWriteMonthlyCommand", {
       value: [
         "aws batch submit-job",
         '--job-name "hls-write-monthly-$(date +%Y%m%d-%H%M%S)"',
@@ -336,7 +376,7 @@ export class HlsBatchStack extends cdk.Stack {
     });
 
     // Add tags
-    cdk.Tags.of(this).add("Project", "HLS-STAC-Parquet");
-    cdk.Tags.of(this).add("Environment", "Production");
+    Tags.of(this).add("Project", "HLS-STAC-Parquet");
+    Tags.of(this).add("Environment", "Production");
   }
 }
