@@ -1,9 +1,10 @@
 # CDK output directory
-cdk-hls-batch/cdk.out
+infrastructure/cdk.out
+infrastructure/**.ts
 cdk.out
 
-# Git directory
-.git
+# Git directory (needed for hatch-vcs to determine version)
+# .git
 .gitignore
 
 # Python cache
@@ -36,6 +37,11 @@ node_modules/
 # Temporary files
 *.tmp
 *.temp
+
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+tests/
 
 # Documentation build
 docs/_build/

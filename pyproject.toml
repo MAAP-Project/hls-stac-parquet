@@ -1,6 +1,6 @@
 [project]
 name = "hls-stac-parquet"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -8,26 +8,42 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "aiohttp>=3.13.2",
+    "aiohttp-retry>=2.9.1",
     "duckdb>=1.3.0",
     "gql[httpx]>=3.5.3",
+    "hilbertcurve>=2.0.5",
     "httpx>=0.28.1",
-    "obstore>=0.6.0",
+    "mgrs>=1.5.0",
+    "obstore>=0.8.2",
     "pystac>=1.13.0",
+    "pytest-recording>=0.13.4",
     "python-cmr>=0.13.0",
-    "rustac>=0.8.0",
+    "rustac>=0.8.3",
     "smart-open>=7.1.0",
     "tqdm>=4.67.1",
+    "typer>=0.20.0",
 ]
 
 [project.scripts]
-hls-stac-parquet = "hls_stac_parquet.cli:cli_main"
+hls-stac-parquet = "hls_stac_parquet.cli:app"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/hls_stac_parquet/_version.py"
 
 [dependency-groups]
 dev = [
+    "boto3>=1.40.73",
+    "hatch-vcs>=0.5.0",
+    "ipython>=9.7.0",
+    "pre-commit>=4.4.0",
     "pytest>=8.3.5",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
@@ -40,8 +56,11 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
+    "--record-mode", "new_episodes",
+    "-vv",
 ]
 testpaths = ["tests"]
+markers = "vcr: records network activity"
 filterwarnings = [
     "ignore::UserWarning",
     "ignore::DeprecationWarning",

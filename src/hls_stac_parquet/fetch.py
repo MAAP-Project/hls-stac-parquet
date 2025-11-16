@@ -7,67 +7,8 @@ from urllib.parse import ParseResult
 
 import obstore as obs
 import tqdm.asyncio
+from obstore.auth.earthdata import NasaEarthdataAsyncCredentialProvider
 from obstore.store import from_url
-
-
-async def fetch_stac_item(store, stac_link: ParseResult) -> Dict[str, Any]:
-    """Fetch a single STAC item from a URL.
-
-    Args:
-        store: obstore ObjectStore instance
-        stac_link: Parsed URL to STAC JSON file
-
-    Returns:
-        STAC item dictionary
-    """
-    item_data = await obs.get_async(store, stac_link.path)
-    item_bytes = await item_data.bytes_async()
-    item_dict = json.loads(item_bytes.to_bytes().decode("utf-8"))
-    return item_dict
-
-
-async def fetch_stac_items_batch(
-    stac_links: List[ParseResult], max_concurrent: int = 50, show_progress: bool = True
-) -> List[Dict[str, Any]]:
-    """Fetch multiple STAC items concurrently.
-
-    Args:
-        stac_links: List of parsed STAC JSON URLs
-        max_concurrent: Maximum number of concurrent requests
-        show_progress: Whether to show progress bar
-
-    Returns:
-        List of STAC item dictionaries
-    """
-    if not stac_links:
-        return []
-
-    # Group by netloc to create stores efficiently
-    stores_by_netloc = {}
-    for link in stac_links:
-        netloc = link.netloc
-        if netloc not in stores_by_netloc:
-            stores_by_netloc[netloc] = from_url(f"{link.scheme}://{netloc}")
-
-    # Create semaphore to limit concurrent requests
-    semaphore = asyncio.Semaphore(max_concurrent)
-
-    async def fetch_with_semaphore(link: ParseResult) -> Dict[str, Any]:
-        async with semaphore:
-            store = stores_by_netloc[link.netloc]
-            return await fetch_stac_item(store, link)
-
-    # Execute fetches concurrently with progress bar
-    tasks = [fetch_with_semaphore(link) for link in stac_links]
-
-    if show_progress:
-        results = await tqdm.asyncio.tqdm.gather(
-            *tasks, desc="Fetching STAC items", total=len(tasks)
-        )
-    else:
-        results = await asyncio.gather(*tasks)
-
-    return results
 
 
 async def fetch_stac_items(
@@ -87,11 +28,24 @@ async def fetch_stac_items(
         return [], []
 
     # Group by netloc to create stores efficiently
+    # Keep track of credential providers so we can close them
     stores_by_netloc = {}
+    credential_providers = []
+
     for link in stac_links:
         netloc = link.netloc
         if netloc not in stores_by_netloc:
-            stores_by_netloc[netloc] = from_url(f"{link.scheme}://{netloc}")
+            store_kwargs = {}
+            if link.scheme == "s3":
+                cp = NasaEarthdataAsyncCredentialProvider(
+                    credentials_url="https://data.lpdaac.earthdatacloud.nasa.gov/s3credentials"
+                )
+                credential_providers.append(cp)
+                store_kwargs["credential_provider"] = cp
+
+            stores_by_netloc[netloc] = from_url(
+                f"{link.scheme}://{netloc}", **store_kwargs
+            )
 
     semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -101,30 +55,38 @@ async def fetch_stac_items(
         async with semaphore:
             try:
                 store = stores_by_netloc[link.netloc]
-                item = await fetch_stac_item(store, link)
+                item_data = await obs.get_async(store, link.path)
+                item_bytes = await item_data.bytes_async()
+                item = json.loads(item_bytes.to_bytes().decode("utf-8"))
+
                 return item, None
             except Exception as e:
                 print(f"Failed to fetch {link.geturl()}: {e}")
                 return None, link
 
-    # Execute fetches concurrently
-    tasks = [fetch_with_error_handling(link) for link in stac_links]
+    try:
+        # Execute fetches concurrently
+        tasks = [fetch_with_error_handling(link) for link in stac_links]
 
-    if show_progress:
-        results = await tqdm.asyncio.tqdm.gather(
-            *tasks, desc="Fetching STAC items", total=len(tasks)
-        )
-    else:
-        results = await asyncio.gather(*tasks)
+        if show_progress:
+            results = await tqdm.asyncio.tqdm.gather(
+                *tasks, desc="Fetching STAC items", total=len(tasks)
+            )
+        else:
+            results = await asyncio.gather(*tasks)
 
-    # Separate successful items from failed links
-    successful_items = []
-    failed_links = []
+        # Separate successful items from failed links
+        successful_items = []
+        failed_links = []
 
-    for item, failed_link in results:
-        if item is not None:
-            successful_items.append(item)
-        if failed_link is not None:
-            failed_links.append(failed_link)
+        for item, failed_link in results:
+            if item is not None:
+                successful_items.append(item)
+            if failed_link is not None:
+                failed_links.append(failed_link)
 
-    return successful_items, failed_links
+        return successful_items, failed_links
+    finally:
+        # Close all credential providers
+        for cp in credential_providers:
+            await cp.close()
