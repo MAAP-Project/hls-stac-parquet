@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import urllib.parse
 from datetime import datetime, timedelta
 from typing import Annotated, List, Literal
@@ -10,6 +11,8 @@ from urllib.parse import ParseResult
 import obstore
 import rustac
 import typer
+from hilbertcurve.hilbertcurve import HilbertCurve
+from mgrs import MGRS
 from obstore.store import ObjectStore, from_url
 
 from hls_stac_parquet._version import __version__
@@ -34,6 +37,61 @@ logging.basicConfig(
 logging.getLogger("stac_io").setLevel("WARN")
 
 logger = logging.getLogger("hls-stac-geoparquet-archive")
+
+# Initialize MGRS converter and Hilbert curve (14 bits = 16384x16384 grid)
+_mgrs_converter = MGRS()
+_hilbert_curve = HilbertCurve(14, 2)
+
+# Regex pattern to extract MGRS tile ID from HLS STAC URLs
+# Pattern: HLS.{SENSOR}.T{MGRS_TILE}.{DATE}.v{VERSION}
+_MGRS_PATTERN = re.compile(r"\.T([0-9]{2}[A-Z]{3})\.")
+
+
+def extract_mgrs_from_url(url: str) -> str | None:
+    """
+    Extract MGRS tile ID from HLS STAC JSON URL.
+
+    Example URL:
+    https://data.lpdaac.earthdatacloud.nasa.gov/lp-prod-public/HLSS30.020/
+    HLS.S30.T60WWV.2025275T234641.v2.0/HLS.S30.T60WWV.2025275T234641.v2.0_stac.json
+
+    Returns: "60WWV" or None if pattern not found
+    """
+    match = _MGRS_PATTERN.search(url)
+    return match.group(1) if match else None
+
+
+def mgrs_to_hilbert_index(mgrs_tile: str) -> int:
+    """
+    Convert MGRS tile ID to Hilbert curve index for spatial sorting.
+
+    Args:
+        mgrs_tile: MGRS tile identifier (e.g., "60WWV")
+
+    Returns:
+        Hilbert curve index (integer) for spatial ordering
+    """
+    try:
+        # Convert MGRS tile to lat/lon coordinates
+        # Use center of tile (60000m, 60000m offset in a ~110km tile)
+        lat, lon = _mgrs_converter.toLatLon(mgrs_tile)
+
+        # Normalize coordinates to grid space [0, 16384)
+        # Longitude: -180 to +180 -> 0 to 16384
+        # Latitude: -90 to +90 -> 0 to 16384
+        x = int((lon + 180) / 360 * 16384)
+        y = int((lat + 90) / 180 * 16384)
+
+        # Clamp to valid range
+        x = max(0, min(16383, x))
+        y = max(0, min(16383, y))
+
+        # Calculate Hilbert curve distance
+        return _hilbert_curve.distance_from_point([x, y])
+    except Exception as e:
+        logger.warning(f"Failed to convert MGRS tile {mgrs_tile} to Hilbert index: {e}")
+        # Return a large number to sort errors to the end
+        return 2**28
 
 
 async def _check_exists(store, path) -> bool:
@@ -235,6 +293,23 @@ async def write_monthly_stac_geoparquet(
                 f"found these links:\n{'\n'.join(stac_json_links)}",
             )
 
+    # Sort links by Hilbert curve for optimal spatial ordering
+    logger.info(
+        f"{collection.collection_id}: sorting {len(stac_json_links)} links by spatial order (Hilbert curve)"
+    )
+
+    def hilbert_sort_key(url: str) -> int:
+        """Extract MGRS tile and convert to Hilbert index for sorting."""
+        mgrs_tile = extract_mgrs_from_url(url)
+        if mgrs_tile:
+            return mgrs_to_hilbert_index(mgrs_tile)
+        else:
+            # If we can't extract MGRS, sort to end
+            logger.warning(f"Could not extract MGRS tile from URL: {url}")
+            return 2**28
+
+    stac_json_links.sort(key=hilbert_sort_key)
+
     logger.info(f"{collection.collection_id}: loading stac items")
     stac_items, failed_links = await fetch_stac_items(
         [urllib.parse.urlparse(link) for link in stac_json_links],
@@ -246,9 +321,6 @@ async def write_monthly_stac_geoparquet(
 
     for item in stac_items:
         item["collection"] = collection.collection_id
-
-    # Sort by datetime for better query performance and compression
-    stac_items.sort(key=lambda item: item.get("properties", {}).get("datetime"))
 
     _ = await rustac.write(
         out_path,
