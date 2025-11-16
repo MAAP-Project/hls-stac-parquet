@@ -20,10 +20,10 @@ Two-step workflow for efficient data processing:
 Query CMR and cache STAC JSON links for a specific day and collection:
 
 ```bash
-uv run hls-stac-parquet cache-daily HLSL30 2024-01-15 s3://bucket/data
+uv run hls-stac-parquet cache-daily-stac-json-links HLSL30 2024-01-15 s3://bucket/data
 
 # Optional: filter by bounding box (west, south, east, north)
-uv run hls-stac-parquet cache-daily HLSS30 2024-01-15 s3://bucket/data \
+uv run hls-stac-parquet cache-daily-stac-json-links HLSS30 2024-01-15 s3://bucket/data \
   --bounding-box -100,40,-90,50
 ```
 
@@ -32,10 +32,10 @@ uv run hls-stac-parquet cache-daily HLSS30 2024-01-15 s3://bucket/data \
 Read cached links and write monthly GeoParquet files:
 
 ```bash
-uv run hls-stac-parquet write-monthly HLSL30 2024-01 s3://bucket/data
+uv run hls-stac-parquet write-monthly-stac-geoparquet HLSL30 2024-01 s3://bucket/data
 
 # Optional: version output and control validation
-uv run hls-stac-parquet write-monthly HLSS30 2024-01 s3://bucket/data \
+uv run hls-stac-parquet write-monthly-stac-geoparquet HLSS30 2024-01 s3://bucket/data \
   --version v0.1.0 \
   --no-require-complete-links
 ```
