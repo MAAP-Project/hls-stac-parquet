@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from hls_stac_parquet.cmr_api import HlsCollection
-from hls_stac_parquet.workflow import cache_daily_stac_json_links
+from hls_stac_parquet.links import cache_daily_stac_json_links
 
 # Configure logger for Lambda environment
 logger = logging.getLogger(__name__)

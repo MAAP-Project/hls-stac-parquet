@@ -5,10 +5,8 @@ from functools import wraps
 
 import typer
 
-from hls_stac_parquet.workflow import (
-    cache_daily_stac_json_links,
-    write_monthly_stac_geoparquet,
-)
+from hls_stac_parquet.links import cache_daily_stac_json_links
+from hls_stac_parquet.write import write_monthly_stac_geoparquet
 
 app = typer.Typer()
 
