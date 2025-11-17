@@ -1,7 +1,7 @@
 [project]
 name = "hls-stac-parquet"
 dynamic = ["version"]
-description = "Add your description here"
+description = "Create a STAC GeoParquet archive of the Harmonized Landsat Sentinel-2 STAC records"
 readme = "README.md"
 authors = [
     { name = "hrodmn", email = "henry.rodman@gmail.com" }
@@ -29,19 +29,16 @@ dependencies = [
 hls-stac-parquet = "hls_stac_parquet.cli:app"
 
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
 
-[tool.hatch.version]
-source = "vcs"
+[tool.pdm.version]
+source = "scm"
 
-[tool.hatch.build.hooks.vcs]
-version-file = "src/hls_stac_parquet/_version.py"
 
 [dependency-groups]
 dev = [
     "boto3>=1.40.73",
-    "hatch-vcs>=0.5.0",
     "ipython>=9.7.0",
     "pre-commit>=4.4.0",
     "pytest>=8.3.5",

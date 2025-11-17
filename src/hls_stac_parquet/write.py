@@ -15,7 +15,7 @@ from hilbertcurve.hilbertcurve import HilbertCurve
 from mgrs import MGRS
 from obstore.store import from_url
 
-from hls_stac_parquet._version import __version__
+from hls_stac_parquet import __version__
 from hls_stac_parquet.cmr_api import HlsCollection
 from hls_stac_parquet.constants import (
     LINK_PATH_FORMAT,
