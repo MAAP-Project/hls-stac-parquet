@@ -157,7 +157,7 @@ payload=`echo '{ "collection": "HLSS30", "end_date": "2025-10-31" }' | openssl b
 aws lambda invoke \
   --function-name "$BATCH_PUBLISHER_FUNCTION" \
   --payload "${payload}" \
-  response.json
+  /tmp/response.json
 
 # view the logs
 BATCH_FUNCTION_NAME=$(aws cloudformation describe-stacks \
@@ -168,43 +168,65 @@ BATCH_FUNCTION_NAME=$(aws cloudformation describe-stacks \
 # View recent logs (last 10 minutes)
 aws logs tail "/aws/lambda/$BATCH_FUNCTION_NAME" --follow
 
-# View the response
-cat response.json
 ```
 
 #### Write Monthly GeoParquet Files (AWS Batch)
 
-Submit Batch jobs directly or use the `submit-job.sh` helper script:
+First, get the job queue, job definition, and bucket name from CloudFormation:
 
 ```bash
-# Submit individual job
+# Get job queue name
+JOB_QUEUE=$(aws cloudformation describe-stacks \
+  --stack-name HlsBatchStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`WriteMonthlyJobQueueArn`].OutputValue' \
+  --output text | cut -d'/' -f2)
+
+# Get job definition name
+JOB_DEFINITION=$(aws cloudformation describe-stacks \
+  --stack-name HlsBatchStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`WriteMonthlyJobDefinitionArn`].OutputValue' \
+  --output text | cut -d'/' -f2 | cut -d':' -f1)
+
+# Get bucket name for destination
+BUCKET_NAME=$(aws cloudformation describe-stacks \
+  --stack-name HlsBatchStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`BucketName`].OutputValue' \
+  --output text)
+
+DEST="s3://${BUCKET_NAME}"
+```
+
+Submit jobs with parameters:
+
+```bash
+# Submit a single write-monthly job
 aws batch submit-job \
-  --job-name "write-monthly-$(date +%Y%m%d-%H%M%S)" \
-  --job-queue HlsBatchStack-HlsWriteMonthlyJobQueue \
-  --job-definition hls-write-monthly-stac-parquet \
-  --parameters collection=HLSL30,yearMonth=2024-01,version=v0.1.0
+  --job-name "write-monthly-HLSL30-2024-01-$(date +%Y%m%d-%H%M%S)" \
+  --job-queue "$JOB_QUEUE" \
+  --job-definition "$JOB_DEFINITION" \
+  --parameters "jobType=write-monthly,collection=HLSL30,yearMonth=2024-01,dest=$DEST,requireCompleteLinks=true,skipExisting=true,version=v0.1.0"
 
-# Submit jobs using helper script (queries CloudFormation automatically)
-# Use --dry-run to preview jobs without submitting
-
-# for a specific collection + month
-./infrastructure/submit-job.sh \
-    --type write-monthly \
-    --collection "HLSL30" \
-    --year-month "2024-01" \
-    --version "0.1.dev11+g7e7b53cb2.d20251112"
-
-# for all collections + months for a year
+# Submit for all collections and months in a year
+VERSION="0.1.dev11+g7e7b53cb2.d20251112"
 for collection in HLSL30 HLSS30; do
   for month in 01 02 03 04 05 06 07 08 09 10 11 12; do
-      ./infrastructure/submit-job.sh \
-        --type write-monthly \
-        --collection "$collection" \
-        --year-month "2024-${month}" \
-        --version "0.1.dev11+g7e7b53cb2.d20251112"
-    done
+    aws batch submit-job \
+      --job-name "write-monthly-${collection}-2024-${month}-$(date +%Y%m%d-%H%M%S)" \
+      --job-queue "$JOB_QUEUE" \
+      --job-definition "$JOB_DEFINITION" \
+      --parameters "jobType=write-monthly,collection=${collection},yearMonth=2024-${month},dest=$DEST,requireCompleteLinks=true,skipExisting=true,version=$VERSION"
   done
+done
 ```
+
+**Available Parameters:**
+- `jobType`: Always "write-monthly"
+- `collection`: "HLSL30" or "HLSS30"
+- `yearMonth`: Format "YYYY-MM" (e.g., "2024-01")
+- `dest`: S3 destination path (e.g., "s3://bucket-name")
+- `requireCompleteLinks`: "true" or "false" (default: "true") - require all daily cache files before processing
+- `skipExisting`: "true" or "false" (default: "true") - skip if output file already exists
+- `version`: Version string for output path (e.g., "v0.1.0") or "none" to omit
 
 
 ### Monitoring

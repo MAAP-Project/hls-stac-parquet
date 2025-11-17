@@ -2,7 +2,11 @@ FROM python:3.13-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Install git for setuptools-scm version detection
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN <<EOF
+apt-get update 
+apt-get install -y --no-install-recommends build-essential gcc git 
+rm -rf /var/lib/apt/lists/*
+EOF
 
 WORKDIR /app
 
@@ -20,6 +24,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM python:3.13-slim
 
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
-COPY --from=builder --chown=app:app /app/entrypoint.sh /app/entrypoint.sh
+COPY --chown=app:app infrastructure/entrypoint.sh /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]

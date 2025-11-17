@@ -1,47 +1,11 @@
-# CDK output directory
-infrastructure/cdk.out
-infrastructure/**.ts
-cdk.out
-
-# Git directory (needed for hatch-vcs to determine version)
-# .git
-.gitignore
-
-# Python cache
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-
-# Virtual environments
-.venv
-venv/
-env/
-ENV/
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Node modules
-node_modules/
-
-# Temporary files
-*.tmp
-*.temp
-
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-tests/
-
-# Documentation build
-docs/_build/
+*
+!infrastructure/lambda/*.py
+!infrastructure/Dockerfile.ecr
+!infrastructure/Dockerfile.lambda
+!infrastructure/entrypoint.sh
+!.python-version
+!pyproject.toml
+!README.md
+!uv.lock
+!src/
+!.git/
