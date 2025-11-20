@@ -201,22 +201,42 @@ Submit jobs with parameters:
 ```bash
 # Submit a single write-monthly job
 aws batch submit-job \
-  --job-name "write-monthly-HLSL30-2024-01-$(date +%Y%m%d-%H%M%S)" \
+  --job-name "write-monthly-HLSL30-2025-01-$(date +%Y%m%d-%H%M%S)" \
   --job-queue "$JOB_QUEUE" \
   --job-definition "$JOB_DEFINITION" \
-  --parameters "jobType=write-monthly,collection=HLSL30,yearMonth=2024-01,dest=$DEST,requireCompleteLinks=true,skipExisting=true,version=v0.1.0"
+  --parameters "jobType=write-monthly,collection=HLSL30,yearMonth=2025-01,dest=$DEST,requireCompleteLinks=true,skipExisting=true"
 
-# Submit for all collections and months in a year
-VERSION="0.1.dev11+g7e7b53cb2.d20251112"
-for collection in HLSL30 HLSS30; do
-  for month in 01 02 03 04 05 06 07 08 09 10 11 12; do
-    aws batch submit-job \
-      --job-name "write-monthly-${collection}-2024-${month}-$(date +%Y%m%d-%H%M%S)" \
-      --job-queue "$JOB_QUEUE" \
-      --job-definition "$JOB_DEFINITION" \
-      --parameters "jobType=write-monthly,collection=${collection},yearMonth=2024-${month},dest=$DEST,requireCompleteLinks=true,skipExisting=true,version=$VERSION"
-  done
-done
+# Function to submit jobs for a date range
+submit_jobs_for_range() {
+    local collection=$1
+    local start_year_month=$2  # Format: YYYY-MM
+    local end_year_month=$3    # Format: YYYY-MM
+
+    # Convert to first day of month for date arithmetic
+    current_date="${start_year_month}-01"
+    end_date="${end_year_month}-01"
+
+    while [[ "$current_date" < "$end_date" ]] || [[ "$current_date" == "$end_date" ]]; do
+        year_month=$(date -d "$current_date" +%Y-%m)
+
+        echo "Submitting job for $collection $year_month"
+        aws batch submit-job \
+          --job-name "write-monthly-${collection}-${year_month}-$(date +%Y%m%d-%H%M%S)" \
+          --job-queue "$JOB_QUEUE" \
+          --job-definition "$JOB_DEFINITION" \
+          --parameters "jobType=write-monthly,collection=${collection},yearMonth=${year_month},dest=$DEST,requireCompleteLinks=true,skipExisting=true"
+
+        # Move to next month
+        current_date=$(date -d "$current_date + 1 month" +%Y-%m-01)
+    done
+}
+
+# Submit for entire collection history
+submit_jobs_for_range "HLSL30" "2013-04" "2025-10"
+submit_jobs_for_range "HLSS30" "2015-11" "2025-10"
+
+# Or submit for specific ranges
+submit_jobs_for_range "HLSL30" "2024-01" "2024-12"
 ```
 
 **Available Parameters:**
@@ -226,7 +246,7 @@ done
 - `dest`: S3 destination path (e.g., "s3://bucket-name")
 - `requireCompleteLinks`: "true" or "false" (default: "true") - require all daily cache files before processing
 - `skipExisting`: "true" or "false" (default: "true") - skip if output file already exists
-- `version`: Version string for output path (e.g., "v0.1.0") or "none" to omit
+- `version`: Version string for output path (e.g., "v0.1.0") or "none" use the deployed version
 
 
 ### Monitoring
